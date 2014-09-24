@@ -1,6 +1,7 @@
 package cz.artique.simpleStreamer;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.List;
 
 import org.apache.logging.log4j.Level;
@@ -11,7 +12,8 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
-import cz.artique.simpleStreamer.utils.CommaSeparatedStripedListOptionHandler;
+import cz.artique.simpleStreamer.utils.CommaDelimitedInetAddressListOptionHandler;
+import cz.artique.simpleStreamer.utils.CommaDelimitedIntegerListOptionHandler;
 
 public class AppArgs {
 
@@ -27,11 +29,11 @@ public class AppArgs {
 	@Option(name = "-sport", aliases = { "-s" }, required = false, usage = "Port to listen on")
 	private int serverPort = 6262;
 
-	@Option(name = "-remote", aliases = { "-rh" }, required = false, usage = "List of remote hostnames", handler = CommaSeparatedStripedListOptionHandler.class)
-	private List<String> remoteHosts;
+	@Option(name = "-remote", aliases = { "-rh" }, required = false, usage = "List of remote hostnames", handler = CommaDelimitedInetAddressListOptionHandler.class)
+	private List<InetAddress> remoteHosts;
 
-	@Option(name = "-rport", aliases = { "-rp" }, required = false, usage = "List of remote ports", handler = CommaSeparatedStripedListOptionHandler.class)
-	private String remotePorts;
+	@Option(name = "-rport", aliases = { "-rp" }, required = false, usage = "List of remote ports", handler = CommaDelimitedIntegerListOptionHandler.class)
+	private List<Integer> remotePorts;
 
 	@Option(name = "-width", aliases = { "-w" }, required = false, usage = "Width of my images")
 	private int width = 320;
@@ -87,11 +89,11 @@ public class AppArgs {
 		return serverPort;
 	}
 
-	public List<String> getRemoteHosts() {
+	public List<InetAddress> getRemoteHosts() {
 		return remoteHosts;
 	}
 
-	public String getRemotePorts() {
+	public List<Integer> getRemotePorts() {
 		return remotePorts;
 	}
 

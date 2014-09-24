@@ -1,4 +1,4 @@
-package cz.artique.simpleStreamer;
+package cz.artique.simpleStreamer.sample;
 
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;

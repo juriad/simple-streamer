@@ -1,5 +1,4 @@
-package cz.artique.simpleStreamer;
-
+package cz.artique.simpleStreamer.sample;
 
 import javax.swing.JFrame;
 
@@ -11,9 +10,9 @@ import com.github.sarxos.webcam.ds.buildin.natives.DeviceList;
 import com.github.sarxos.webcam.ds.buildin.natives.OpenIMAJGrabber;
 
 public class LocalView {
-	
+
 	public static void main(String[] args) {
-		
+
 		Viewer myViewer = new Viewer();
 		JFrame frame = new JFrame("Simple Stream Viewer");
 		frame.setVisible(true);
@@ -34,7 +33,8 @@ public class LocalView {
 			break;
 		}
 
-		boolean started = grabber.startSession(160, 120, 30, Pointer.pointerTo(device));
+		boolean started = grabber.startSession(160, 120, 30,
+				Pointer.pointerTo(device));
 		if (!started) {
 			throw new RuntimeException("Not able to start native grabber!");
 		}
@@ -45,7 +45,7 @@ public class LocalView {
 			/* Get a frame from the webcam. */
 			grabber.nextFrame();
 			/* Get the raw bytes of the frame. */
-			byte[] raw_image=grabber.getImage().getBytes(160 * 120 * 3);
+			byte[] raw_image = grabber.getImage().getBytes(160 * 120 * 3);
 			/* Apply a crude kind of image compression. */
 			byte[] compressed_image = Compressor.compress(raw_image);
 			/* Prepare the date to be sent in a text friendly format. */
@@ -53,10 +53,10 @@ public class LocalView {
 			/*
 			 * The image data can be sent to connected clients.
 			 */
-			
+
 			/*
-			 * Assume we received some image data.
-			 * Remove the text friendly encoding.
+			 * Assume we received some image data. Remove the text friendly
+			 * encoding.
 			 */
 			byte[] nobase64_image = Base64.decodeBase64(base64_image);
 			/* Decompress the image */
@@ -68,6 +68,5 @@ public class LocalView {
 
 		grabber.stopSession();
 	}
-	
 
 }
