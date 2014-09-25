@@ -5,7 +5,8 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+
+import javax.swing.SwingUtilities;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,17 +16,18 @@ import cz.artique.simpleStreamer.backend.ImageProvider;
 import cz.artique.simpleStreamer.backend.ImageProviderListener;
 import cz.artique.simpleStreamer.backend.Peer;
 import cz.artique.simpleStreamer.backend.WebCamReader;
+import cz.artique.simpleStreamer.frontend.CloseListener;
+import cz.artique.simpleStreamer.frontend.Displayer;
+import cz.artique.simpleStreamer.interconnect.CleverList;
 
 public class App {
 	static final Logger logger = LogManager.getLogger(App.class.getName());
 
-	private WebCamReader webCamReader;
-
-	private List<Peer> peers;
-
-	private List<Crate> crates;
+	private CleverList<ImageProvider> imageProviders;
 
 	private AppArgs arguments;
+
+	private Thread mainThread;
 
 	/**
 	 * If any thread throws an exception, whole application should crash.
@@ -41,6 +43,7 @@ public class App {
 
 	public App(AppArgs arguments) {
 		this.arguments = arguments;
+		mainThread = Thread.currentThread();
 		List<InetAddress> remoteHosts = arguments.getRemoteHosts();
 		List<Integer> remotePorts = arguments.getRemotePorts();
 
@@ -49,52 +52,89 @@ public class App {
 		if (remoteHosts.size() != remotePorts.size()) {
 			logger.warn("The number of remotes does not equal to number of ports given.");
 		}
-		crates = new CopyOnWriteArrayList<Crate>();
-		Crate crate = new Crate();
-		crates.add(crate);
+		imageProviders = new CleverList<ImageProvider>();
+		createWebReader();
 
-		// FIXME what to do with fps
-		int fps = 30;
+		SwingUtilities.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				new Displayer(imageProviders)
+						.addCloseListener(new CloseListener() {
+							@Override
+							public void applicationClosing() {
+								mainThread.setDaemon(true);
+							}
+						});
+			}
+		});
 
-		webCamReader = new WebCamReader(crate, arguments.getWidth(),
-				arguments.getHeight(), fps);
-
-		Thread reader = new Thread(webCamReader);
-		reader.start();
-
-		peers = new CopyOnWriteArrayList<Peer>();
 		createPeers(count, arguments.getRemoteHosts(),
 				arguments.getRemotePorts());
 	}
 
-	private Peer createPeer(Socket socket) {
-		Crate crate = new Crate();
+	private WebCamReader createWebReader() {
+		// FIXME what to do with fps
+		int fps = 300;
 
-		Peer p = null;
-		try {
-			p = new Peer(socket, crate, crates.get(0));
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		WebCamReader webCamReader = new WebCamReader(arguments.getWidth(),
+				arguments.getHeight(), fps);
+		imageProviders.add(webCamReader);
+		watchState(webCamReader);
 
-		p.addImageProviderListener(new ImageProviderListener() {
+		Thread reader = new Thread(webCamReader);
+		reader.start();
+
+		return webCamReader;
+	}
+
+	private Peer createPeer(Socket socket) throws IOException {
+		Peer peer = new Peer(socket);
+		watchState(peer);
+		return peer;
+	}
+
+	private void watchState(ImageProvider provider) {
+		provider.addImageProviderListener(new ImageProviderListener() {
 			@Override
 			public void stateChanged(ImageProvider provider) {
 				// this makes sure that as soon as the peer becomes
 				// obsolete, it will be removed from the lists.
 				if (ImagePrioviderState.OBSOLETE.equals(provider.getState())) {
-					peers.remove(provider);
-					crates.remove(provider.getCrate());
+					imageProviders.remove(provider);
 				}
 			}
 
 			@Override
 			public void imageAvailable(ImageProvider provider) {
+				// ignore
 			}
 		});
+	}
 
-		return p;
+	private void createPeers(int count, List<InetAddress> remoteHosts,
+			List<Integer> remotePorts) {
+		for (int i = 0; i < count; i++) {
+			InetAddress host = remoteHosts.get(i);
+			Integer port = remotePorts.get(i);
+
+			Socket socket = null;
+			try {
+				socket = new Socket(host, port);
+			} catch (IOException e) {
+				logger.error("Could not connect to host " + host.getHostName()
+						+ " and port " + port, e);
+				logger.info("Will skip this connection and continue with others.");
+				continue;
+			}
+			try {
+				Peer p = createPeer(socket);
+				imageProviders.add(p);
+			} catch (Exception e) {
+				logger.error("Could not create peer for " + host.getHostName()
+						+ " and port " + port, e);
+				logger.info("Will skip this peer and continue with others.");
+			}
+		}
 	}
 
 	private void listen() {
@@ -110,8 +150,7 @@ public class App {
 				try {
 					Socket connectionSocket = serverSocket.accept();
 					Peer p = createPeer(connectionSocket);
-					peers.add(p);
-					crates.add(p.getCrate());
+					imageProviders.add(p);
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -134,28 +173,5 @@ public class App {
 		AppArgs arguments = new AppArgs(args);
 		App app = new App(arguments);
 		app.listen();
-	}
-
-	private void createPeers(int count, List<InetAddress> remoteHosts,
-			List<Integer> remotePorts) {
-		final List<Peer> peers = new CopyOnWriteArrayList<Peer>();
-
-		for (int i = 0; i < count; i++) {
-			InetAddress host = remoteHosts.get(i);
-			Integer port = remotePorts.get(i);
-
-			Socket socket = null;
-			try {
-				socket = new Socket(host, port);
-			} catch (IOException e) {
-				logger.error("Could not connect to host " + host.getHostName()
-						+ " and port " + port, e);
-				logger.info("Will skip this connection and continue with others.");
-				continue;
-			}
-			Peer p = createPeer(socket);
-			peers.add(p);
-			crates.add(p.getCrate());
-		}
 	}
 }

@@ -2,6 +2,7 @@ package cz.artique.simpleStreamer;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.logging.log4j.Level;
@@ -90,10 +91,16 @@ public class AppArgs {
 	}
 
 	public List<InetAddress> getRemoteHosts() {
+		if (remoteHosts == null) {
+			return new ArrayList<InetAddress>();
+		}
 		return remoteHosts;
 	}
 
 	public List<Integer> getRemotePorts() {
+		if (remotePorts == null) {
+			return new ArrayList<Integer>();
+		}
 		return remotePorts;
 	}
 

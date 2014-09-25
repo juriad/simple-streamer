@@ -7,8 +7,31 @@
 	<name>simple-streamer</name>
 	<description>Peer-to-peer webcam sharing system.</description>
 
+	<repositories>
+		<repository>
+			<id>Sonatype OSS Snapshot Repository</id>
+			<url>http://oss.sonatype.org/content/repositories/snapshots</url>
+		</repository>
+		<repository>
+			<id>sonatype</id>
+			<name>Sonatype OSS Snapshots Repository</name>
+			<url>http://oss.sonatype.org/content/groups/public</url>
+		</repository>
+		<repository>
+			<id>nativelibs4java-repo</id>
+			<name>NativeLibs4Java Old Snapshots Repository</name>
+			<url>http://nativelibs4java.sourceforge.net/maven</url>
+		</repository>
+		<repository>
+			<id>SarXos Repository</id>
+			<url>http://www.sarxos.pl/repo/maven2</url>
+		</repository>
+	</repositories>
+
+
 	<dependencies>
 		<dependency>
+			<!-- testing library -->
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>3.8.1</version>
@@ -44,10 +67,17 @@
 		</dependency>
 
 		<dependency>
-			<!-- webcam -->
+			<!-- webcam capture -->
 			<groupId>com.github.sarxos</groupId>
 			<artifactId>webcam-capture</artifactId>
-			<version>0.3.9</version>
+			<version>0.3.10</version>
+		</dependency>
+
+		<dependency>
+			<!-- native library handler for webcam capture -->
+			<groupId>com.nativelibs4java</groupId>
+			<artifactId>bridj</artifactId>
+			<version>0.7-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>

@@ -1,28 +1,26 @@
 package cz.artique.simpleStreamer.backend;
 
-import org.bridj.Pointer;
+import java.awt.Dimension;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 
-import com.github.sarxos.webcam.ds.buildin.natives.Device;
-import com.github.sarxos.webcam.ds.buildin.natives.OpenIMAJGrabber;
-
-import cz.artique.simpleStreamer.Crate;
+import com.github.sarxos.webcam.Webcam;
 
 public class WebCamReader extends AbstractImageProvider implements Runnable {
 
-	private OpenIMAJGrabber grabber;
 	private int width;
 	private int height;
-	private Device device;
-	private int fps;
+	private int rate;
+	private Webcam webcam;
 
-	public WebCamReader(Crate myCrate, int width, int height, int fps) {
-		super(myCrate);
+	public WebCamReader(int width, int height, int rate) {
+		super("Local webcam");
 		this.width = width;
 		this.height = height;
-		this.fps = fps;
+		this.rate = rate;
 
-		grabber = new OpenIMAJGrabber();
-		device = grabber.getVideoDevices().get().getDevice(0).get();
+		webcam = Webcam.getDefault();
+		webcam.setViewSize(new Dimension(width, height));
 	}
 
 	@Override
@@ -37,24 +35,25 @@ public class WebCamReader extends AbstractImageProvider implements Runnable {
 
 	@Override
 	public void run() {
-		boolean started = grabber.startSession(getWidth(), getHeight(), fps,
-				Pointer.pointerTo(device));
-		if (!started) {
-			throw new RuntimeException("Not able to start native grabber!");
-		}
+		webcam.open();
 		setState(ImagePrioviderState.INITIALIZED);
 
 		while (!isEnd()) {
-			/* Get a frame from the webcam. */
-			grabber.nextFrame();
-			/* Get the raw bytes of the frame. */
-			byte[] rawImage = grabber.getImage().getBytes(160 * 120 * 3);
+			BufferedImage image = webcam.getImage();
+			DataBufferByte dataBuffer = (DataBufferByte) image.getRaster()
+					.getDataBuffer();
+			byte[] rawImage = dataBuffer.getData();
 			crate.setImage(rawImage);
 			fireImageAvailable();
 			setState(ImagePrioviderState.RUNNING);
+			try {
+				Thread.sleep((long) (1000.0 / rate));
+			} catch (InterruptedException e) {
+				// do nothing
+			}
 		}
 		setState(ImagePrioviderState.OBSOLETE);
-		grabber.stopSession();
+		webcam.close();
 	}
 
 }

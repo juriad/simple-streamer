@@ -1,6 +1,6 @@
 package cz.artique.simpleStreamer.backend;
 
-import cz.artique.simpleStreamer.Crate;
+import cz.artique.simpleStreamer.interconnect.Crate;
 
 
 public interface ImageProvider {
@@ -16,5 +16,7 @@ public interface ImageProvider {
 	void terminate();
 
 	void addImageProviderListener(ImageProviderListener l);
+
+	String getName();
 
 }

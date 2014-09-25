@@ -3,7 +3,6 @@ package cz.artique.simpleStreamer.backend;
 import java.io.IOException;
 import java.net.Socket;
 
-import cz.artique.simpleStreamer.Crate;
 import cz.artique.simpleStreamer.network.MessageHandler;
 
 public class Peer extends AbstractImageProvider implements Runnable {
@@ -12,8 +11,8 @@ public class Peer extends AbstractImageProvider implements Runnable {
 	private int height;
 	private MessageHandler messageHandler;
 
-	public Peer(Socket socket, Crate myCrate, Crate toSend) throws IOException {
-		super(myCrate);
+	public Peer(Socket socket) throws IOException {
+		super(socket.getInetAddress().getHostName() + ":" + socket.getPort());
 		messageHandler = new MessageHandler(socket);
 	}
 
@@ -37,4 +36,5 @@ public class Peer extends AbstractImageProvider implements Runnable {
 	public void run() {
 		// TODO read messages
 	}
+
 }
