@@ -43,7 +43,10 @@ public class AppArgs {
 	private int height = 240;
 
 	@Option(name = "-rate", aliases = { "-r" }, required = false, usage = "Framerate")
-	private int rate = 10;
+	private int rate = 100;
+
+	@Option(name = "-dummy", aliases = { "-d" }, required = false, usage = "Use dummy webcam")
+	private boolean dummy;
 
 	public AppArgs(String... args) {
 		parse(args);
@@ -114,6 +117,10 @@ public class AppArgs {
 
 	public int getRate() {
 		return rate;
+	}
+
+	public boolean isDummy() {
+		return dummy;
 	}
 
 }

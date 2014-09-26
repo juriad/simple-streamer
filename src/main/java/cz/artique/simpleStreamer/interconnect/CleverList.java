@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * 
  * This list is thread-safe. It can only add a single element and remove single
@@ -17,6 +20,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @param <E>
  */
 public class CleverList<E> implements List<E> {
+	static final Logger logger = LogManager.getLogger(CleverList.class
+			.getName());
 	private CopyOnWriteArrayList<E> list;
 
 	private List<ListChangeListener<E>> listeners = new ArrayList<ListChangeListener<E>>();
@@ -27,15 +32,19 @@ public class CleverList<E> implements List<E> {
 
 	public synchronized void addListChangeListener(ListChangeListener<E> l) {
 		listeners.add(l);
+		logger.debug("Added list change listener: " + l);
 	}
 
 	protected void fireElementAdded(int index, E value) {
+		logger.debug("An element " + value + " has been added to this list.");
 		for (ListChangeListener<E> l : listeners) {
 			l.elementAdded(index, value);
 		}
 	}
 
 	protected void fireElementRemoved(int index, E value) {
+		logger.debug("An element " + value
+				+ " has been removed from this list.");
 		for (ListChangeListener<E> l : listeners) {
 			l.elementRemoved(index, value);
 		}

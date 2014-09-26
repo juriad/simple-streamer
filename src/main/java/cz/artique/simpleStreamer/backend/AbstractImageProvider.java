@@ -3,13 +3,18 @@ package cz.artique.simpleStreamer.backend;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import cz.artique.simpleStreamer.interconnect.Crate;
 
 public abstract class AbstractImageProvider implements ImageProvider {
+	static final Logger logger = LogManager
+			.getLogger(AbstractImageProvider.class.getName());
 
 	private boolean end;
 	protected Crate crate;
-	private ImagePrioviderState state = ImagePrioviderState.UNINITIALIZED;
+	private ImageProviderState state = ImageProviderState.UNINITIALIZED;
 	private List<ImageProviderListener> listeners;
 	private String name;
 
@@ -25,11 +30,11 @@ public abstract class AbstractImageProvider implements ImageProvider {
 	}
 
 	@Override
-	public ImagePrioviderState getState() {
+	public ImageProviderState getState() {
 		return state;
 	}
 
-	protected void setState(ImagePrioviderState state) {
+	protected void setState(ImageProviderState state) {
 		if (!this.state.equals(state)) {
 			this.state = state;
 			fireStateChanged();
@@ -38,6 +43,7 @@ public abstract class AbstractImageProvider implements ImageProvider {
 
 	@Override
 	public synchronized void terminate() {
+		logger.info(this + " Terminate called.");
 		end = true;
 	}
 
@@ -47,16 +53,21 @@ public abstract class AbstractImageProvider implements ImageProvider {
 
 	@Override
 	public synchronized void addImageProviderListener(ImageProviderListener l) {
+		logger.info(this + " Added listener " + l + ".");
 		listeners.add(l);
 	}
 
 	protected void fireStateChanged() {
+		logger.info(this + " State changed to " + getState()
+				+ "; notifying listeners.");
 		for (ImageProviderListener l : listeners) {
 			l.stateChanged(this);
 		}
 	}
 
 	protected void fireImageAvailable() {
+		logger.info(this + " A new image number " + getCrate().getImageNumber()
+				+ " is available.");
 		for (ImageProviderListener l : listeners) {
 			l.imageAvailable(this);
 		}

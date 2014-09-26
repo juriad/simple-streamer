@@ -2,7 +2,7 @@ package cz.artique.simpleStreamer.network;
 
 import org.json.simple.JSONObject;
 
-import cz.artique.simpleStreamer.ImageFormat;
+import cz.artique.simpleStreamer.compression.ImageFormat;
 
 public class StartStreamMessage extends AbstractMessage {
 
@@ -11,6 +11,13 @@ public class StartStreamMessage extends AbstractMessage {
 	private int width;
 
 	private int height;
+	
+	public StartStreamMessage(ImageFormat format, int width, int height) {
+		this();
+		this.format = format;
+		this.width = width;
+		this.height = height;
+	}
 
 	public StartStreamMessage() {
 		super("startstream");

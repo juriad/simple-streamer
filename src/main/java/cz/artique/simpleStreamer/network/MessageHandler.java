@@ -1,9 +1,10 @@
 package cz.artique.simpleStreamer.network;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.Socket;
 
 import org.apache.logging.log4j.LogManager;
@@ -17,44 +18,65 @@ public class MessageHandler {
 
 	private MessageFactory messageFactory;
 
-	private BufferedInputStream is;
+	private BufferedReader is;
 
-	private BufferedOutputStream os;
+	private BufferedWriter os;
+
+	private Socket socket;
 
 	public MessageHandler(Socket socket) throws IOException {
-		is = new BufferedInputStream(socket.getInputStream());
-		os = new BufferedOutputStream(socket.getOutputStream());
+		this.socket = socket;
+		is = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+		os = new BufferedWriter(
+				new OutputStreamWriter(socket.getOutputStream()));
 		messageFactory = new MessageFactory();
 	}
 
 	private String readMessage() throws IOException {
-		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-
+		StringBuilder sb = new StringBuilder();
 		int c;
 		do {
 			c = is.read();
-			buffer.write(c);
+			sb.append((char) c);
 		} while (c != '}');
-		return buffer.toString("UTF-8");
+		return sb.toString();
 	}
 
 	public Message receiveMessage() throws MalformedMessageException,
 			IOException {
 		String input = readMessage();
+		logger.debug(this + " Received: " + input);
 		Object object = JSONValue.parse(input);
 		if (object == null || !(object instanceof JSONObject)) {
 			throw new MalformedMessageException(
 					"Packet content is not a valid JSON object.");
 		}
-		JSONObject message = (JSONObject) object;
-		return messageFactory.parseMessage(message);
+		JSONObject jsonMessage = (JSONObject) object;
+		Message message = messageFactory.parseMessage(jsonMessage);
+		logger.info(this + " Received message of type: " + message.getType());
+		return message;
 	}
 
 	public void sendMessage(Message message) throws IOException {
 		JSONObject obj = message.asJSONObject();
 		String jsonString = obj.toJSONString();
-		logger.info("Sending:" + jsonString);
-		byte[] buf = jsonString.getBytes();
-		os.write(buf);
+		logger.info(this + " Sending message of type: " + message.getType());
+		logger.debug(this + " Sending:" + jsonString);
+		os.write(jsonString);
+	}
+
+	public void close() {
+		logger.info(this + " Closing socket.");
+		try {
+			socket.close();
+		} catch (IOException e) {
+			logger.error("Failed to close socket.", e);
+		}
+	}
+
+	@Override
+	public String toString() {
+		return "Message handler for " + socket.getInetAddress().getHostName()
+				+ ":" + socket.getPort();
 	}
 }

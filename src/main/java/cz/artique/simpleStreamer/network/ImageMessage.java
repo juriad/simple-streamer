@@ -6,6 +6,11 @@ import org.json.simple.JSONObject;
 public class ImageMessage extends AbstractMessage {
 
 	private byte[] data;
+	
+	public ImageMessage(byte[] data) {
+		this();
+		this.data = data;
+	}
 
 	public ImageMessage() {
 		super("image");

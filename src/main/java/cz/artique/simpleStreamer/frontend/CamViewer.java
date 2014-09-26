@@ -8,10 +8,16 @@ import java.awt.image.WritableRaster;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import cz.artique.simpleStreamer.backend.ImageProvider;
 import cz.artique.simpleStreamer.backend.ImageProviderListener;
 
 public class CamViewer extends JPanel {
+	static final Logger logger = LogManager
+			.getLogger(CamViewer.class.getName());
+
 	private static final long serialVersionUID = 1L;
 
 	private ImageProvider provider;
@@ -40,11 +46,12 @@ public class CamViewer extends JPanel {
 
 			@Override
 			public void imageAvailable(ImageProvider provider) {
-				if (imageShown >= provider.getCrate().getImageNumber()
-						|| refreshRequest) {
+				if (refreshRequest) {
 					return;
 				}
 				refreshRequest = true;
+				logger.info(CamViewer.this
+						+ " Got a new image; scheduling a refresh request.");
 				SwingUtilities.invokeLater(new Runnable() {
 					@Override
 					public void run() {
@@ -53,6 +60,7 @@ public class CamViewer extends JPanel {
 				});
 			}
 		});
+		logger.info(this + " Created.");
 	}
 
 	private int[] toIntArray(byte[] barr) {
@@ -63,11 +71,12 @@ public class CamViewer extends JPanel {
 	}
 
 	private void refreshImage() {
-		byte[] imageData = provider.getCrate().getImage();
+		byte[] imageData = provider.getCrate().getImage(imageShown);
+		imageShown = provider.getCrate().getImageNumber();
+		logger.info(this + " Showning image number " + imageShown);
 		WritableRaster raster = image.getRaster();
 		raster.setPixels(0, 0, getWidth(), getHeight(), toIntArray(imageData));
 		this.repaint();
-		imageShown = provider.getCrate().getImageNumber();
 		refreshRequest = false;
 	}
 
@@ -75,5 +84,10 @@ public class CamViewer extends JPanel {
 	protected void paintComponent(Graphics g) {
 		super.paintComponent(g);
 		g.drawImage(image, 0, 0, null);
+	}
+
+	@Override
+	public String toString() {
+		return "CamViewer of " + provider.toString();
 	}
 }

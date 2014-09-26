@@ -3,7 +3,7 @@ package cz.artique.simpleStreamer.network;
 import org.apache.commons.codec.binary.Base64;
 import org.json.simple.JSONObject;
 
-import cz.artique.simpleStreamer.ImageFormat;
+import cz.artique.simpleStreamer.compression.ImageFormat;
 
 public class MessageFactory {
 

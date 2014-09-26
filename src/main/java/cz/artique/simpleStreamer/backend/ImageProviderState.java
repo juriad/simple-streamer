@@ -1,5 +1,5 @@
 package cz.artique.simpleStreamer.backend;
 
-public enum ImagePrioviderState {
+public enum ImageProviderState {
 	UNINITIALIZED, INITIALIZED, RUNNING, OBSOLETE;
 }

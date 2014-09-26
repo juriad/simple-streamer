@@ -11,7 +11,7 @@ public interface ImageProvider {
 
 	Crate getCrate();
 
-	ImagePrioviderState getState();
+	ImageProviderState getState();
 
 	void terminate();
 

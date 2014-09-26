@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.List;
 
 import javax.swing.SwingUtilities;
@@ -11,11 +12,16 @@ import javax.swing.SwingUtilities;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import cz.artique.simpleStreamer.backend.ImagePrioviderState;
+import cz.artique.simpleStreamer.backend.ImageProviderState;
 import cz.artique.simpleStreamer.backend.ImageProvider;
 import cz.artique.simpleStreamer.backend.ImageProviderListener;
 import cz.artique.simpleStreamer.backend.Peer;
-import cz.artique.simpleStreamer.backend.WebCamReader;
+import cz.artique.simpleStreamer.backend.cam.DummyWebCamReader;
+import cz.artique.simpleStreamer.backend.cam.RealWebCamReader;
+import cz.artique.simpleStreamer.backend.cam.WebCamReader;
+import cz.artique.simpleStreamer.compression.Compressors;
+import cz.artique.simpleStreamer.compression.ImageFormat;
+import cz.artique.simpleStreamer.compression.RawCompressor;
 import cz.artique.simpleStreamer.frontend.CloseListener;
 import cz.artique.simpleStreamer.frontend.Displayer;
 import cz.artique.simpleStreamer.interconnect.CleverList;
@@ -27,7 +33,9 @@ public class App {
 
 	private AppArgs arguments;
 
-	private Thread mainThread;
+	private WebCamReader webCamReader;
+
+	private boolean endListening = false;
 
 	/**
 	 * If any thread throws an exception, whole application should crash.
@@ -36,6 +44,8 @@ public class App {
 		Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
 			@Override
 			public void uncaughtException(Thread t, Throwable e) {
+				logger.error("A thread " + t.getName() + "(" + t.getId()
+						+ ") threw an exception; killing whole application.", e);
 				System.exit(1);
 			}
 		});
@@ -43,7 +53,8 @@ public class App {
 
 	public App(AppArgs arguments) {
 		this.arguments = arguments;
-		mainThread = Thread.currentThread();
+		setupCompressors();
+
 		List<InetAddress> remoteHosts = arguments.getRemoteHosts();
 		List<Integer> remotePorts = arguments.getRemotePorts();
 
@@ -52,9 +63,11 @@ public class App {
 		if (remoteHosts.size() != remotePorts.size()) {
 			logger.warn("The number of remotes does not equal to number of ports given.");
 		}
+		logger.info("Will connect to " + count + " peers.");
 		imageProviders = new CleverList<ImageProvider>();
-		createWebReader();
+		webCamReader = createWebCamReader();
 
+		logger.info("Scheduling GUI creation.");
 		SwingUtilities.invokeLater(new Runnable() {
 			@Override
 			public void run() {
@@ -62,7 +75,7 @@ public class App {
 						.addCloseListener(new CloseListener() {
 							@Override
 							public void applicationClosing() {
-								mainThread.setDaemon(true);
+								endListening = true;
 							}
 						});
 			}
@@ -72,23 +85,32 @@ public class App {
 				arguments.getRemotePorts());
 	}
 
-	private WebCamReader createWebReader() {
-		// FIXME what to do with fps
-		int fps = 300;
+	private void setupCompressors() {
+		Compressors.COMPRESSORS.registerCompressor(new RawCompressor());
+	}
 
-		WebCamReader webCamReader = new WebCamReader(arguments.getWidth(),
-				arguments.getHeight(), fps);
+	private WebCamReader createWebCamReader() {
+		int rate = 20; // wait between images (50FPS)
+
+		WebCamReader webCamReader;
+		if (arguments.isDummy()) {
+			webCamReader = new DummyWebCamReader(arguments.getWidth(),
+					arguments.getHeight(), rate);
+			logger.info("Created a dummy webcam reader.");
+		} else {
+			webCamReader = new RealWebCamReader(arguments.getWidth(),
+					arguments.getHeight(), rate);
+			logger.info("Created a real webcam reader.");
+		}
 		imageProviders.add(webCamReader);
 		watchState(webCamReader);
-
-		Thread reader = new Thread(webCamReader);
-		reader.start();
 
 		return webCamReader;
 	}
 
 	private Peer createPeer(Socket socket) throws IOException {
-		Peer peer = new Peer(socket);
+		Peer peer = new Peer(socket, webCamReader, ImageFormat.RAW,
+				arguments.getRate());
 		watchState(peer);
 		return peer;
 	}
@@ -99,7 +121,9 @@ public class App {
 			public void stateChanged(ImageProvider provider) {
 				// this makes sure that as soon as the peer becomes
 				// obsolete, it will be removed from the lists.
-				if (ImagePrioviderState.OBSOLETE.equals(provider.getState())) {
+				if (ImageProviderState.OBSOLETE.equals(provider.getState())) {
+					logger.info("Provider " + provider
+							+ " became obsolete; removing it from the list.");
 					imageProviders.remove(provider);
 				}
 			}
@@ -113,6 +137,7 @@ public class App {
 
 	private void createPeers(int count, List<InetAddress> remoteHosts,
 			List<Integer> remotePorts) {
+		logger.info("Creating peers.");
 		for (int i = 0; i < count; i++) {
 			InetAddress host = remoteHosts.get(i);
 			Integer port = remotePorts.get(i);
@@ -128,6 +153,7 @@ public class App {
 			}
 			try {
 				Peer p = createPeer(socket);
+				logger.info("Adding peer " + p + " into the list.");
 				imageProviders.add(p);
 			} catch (Exception e) {
 				logger.error("Could not create peer for " + host.getHostName()
@@ -142,27 +168,39 @@ public class App {
 		try {
 			try {
 				serverSocket = new ServerSocket(arguments.getServerPort());
+				serverSocket.setSoTimeout(100);
+				logger.info("Created server socket for local port "
+						+ arguments.getServerPort());
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				logger.error("Could not create socket for local port "
+						+ arguments.getServerPort(), e);
+				logger.info("Killing the application.");
+				throw new RuntimeException(e);
 			}
-			while (true) {
+			while (!endListening) {
 				try {
 					Socket connectionSocket = serverSocket.accept();
+					logger.info("Accepted a connection from "
+							+ connectionSocket.getInetAddress().getHostName()
+							+ ":" + connectionSocket.getPort());
 					Peer p = createPeer(connectionSocket);
+					logger.info("Added a new peer " + p + " to the list.");
 					imageProviders.add(p);
+				} catch (SocketTimeoutException e) {
+					// do nothing
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					logger.error("Failed to accept a connection.", e);
+					logger.info("Listening again.");
 				}
 			}
+			logger.info("Application has been closed. Ending listening.");
 		} finally {
 			if (serverSocket != null) {
 				try {
 					serverSocket.close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					logger.error("Failed to close socket.", e);
+					// there is nothing to do
 				}
 			}
 		}

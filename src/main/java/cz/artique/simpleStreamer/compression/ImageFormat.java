@@ -1,4 +1,4 @@
-package cz.artique.simpleStreamer;
+package cz.artique.simpleStreamer.compression;
 
 public enum ImageFormat {
 
