@@ -37,6 +37,11 @@ public class MessageHandler {
 		int c;
 		do {
 			c = is.read();
+			if (c == -1) {
+				logger.error(this
+						+ " Stream end reached before message end found.");
+				throw new IOException("Stream ended before the end of packet");
+			}
 			sb.append((char) c);
 		} while (c != '}');
 		return sb.toString();

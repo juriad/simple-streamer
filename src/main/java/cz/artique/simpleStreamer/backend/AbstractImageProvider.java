@@ -57,7 +57,7 @@ public abstract class AbstractImageProvider implements ImageProvider {
 		listeners.add(l);
 	}
 
-	protected void fireStateChanged() {
+	protected synchronized void fireStateChanged() {
 		logger.info(this + " State changed to " + getState()
 				+ "; notifying listeners.");
 		for (ImageProviderListener l : listeners) {
@@ -65,7 +65,7 @@ public abstract class AbstractImageProvider implements ImageProvider {
 		}
 	}
 
-	protected void fireImageAvailable() {
+	protected synchronized void fireImageAvailable() {
 		logger.info(this + " A new image number " + getCrate().getImageNumber()
 				+ " is available.");
 		for (ImageProviderListener l : listeners) {

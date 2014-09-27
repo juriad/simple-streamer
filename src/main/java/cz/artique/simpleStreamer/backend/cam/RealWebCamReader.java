@@ -2,7 +2,6 @@ package cz.artique.simpleStreamer.backend.cam;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,10 +39,7 @@ public class RealWebCamReader extends AbstractWebcamReader {
 
 		while (!isEnd()) {
 			BufferedImage image = webcam.getImage();
-			DataBufferByte dataBuffer = (DataBufferByte) image.getRaster()
-					.getDataBuffer();
-			byte[] rawImage = dataBuffer.getData();
-			crate.setImage(rawImage);
+			crate.setImage(image);
 			fireImageAvailable();
 			setState(ImageProviderState.RUNNING);
 			try {

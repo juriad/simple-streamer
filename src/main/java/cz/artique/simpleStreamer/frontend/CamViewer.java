@@ -1,9 +1,14 @@
 package cz.artique.simpleStreamer.frontend;
 
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.Point;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.awt.image.BufferedImage;
-import java.awt.image.WritableRaster;
 
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -13,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 
 import cz.artique.simpleStreamer.backend.ImageProvider;
 import cz.artique.simpleStreamer.backend.ImageProviderListener;
+import cz.artique.simpleStreamer.interconnect.CrateImage;
 
 public class CamViewer extends JPanel {
 	static final Logger logger = LogManager
@@ -26,16 +32,13 @@ public class CamViewer extends JPanel {
 
 	int imageShown = -1;
 
+	int forcedWidth = -1;
+
 	boolean refreshRequest = false;
 
 	public CamViewer(ImageProvider provider) {
 		this.provider = provider;
 
-		image = new BufferedImage(provider.getWidth(), provider.getHeight(),
-				BufferedImage.TYPE_3BYTE_BGR);
-
-		this.setPreferredSize(new Dimension(provider.getWidth(), provider
-				.getHeight()));
 		this.setToolTipText(provider.getName());
 
 		provider.addImageProviderListener(new ImageProviderListener() {
@@ -60,22 +63,46 @@ public class CamViewer extends JPanel {
 				});
 			}
 		});
+
+		addMouseMotionListener(new MouseMotionAdapter() {
+			@Override
+			public void mouseDragged(MouseEvent e) {
+				Point point = e.getPoint();
+				setForcedWidth((int) point.getX());
+			}
+		});
+
+		addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				if (e.getClickCount() > 1) {
+					setForcedWidth(-1);
+				}
+			}
+		});
+
 		logger.info(this + " Created.");
 	}
 
-	private int[] toIntArray(byte[] barr) {
-		int[] result = new int[barr.length];
-		for (int i = 0; i < barr.length; i++)
-			result[i] = barr[i];
-		return result;
+	@Override
+	public Dimension getPreferredSize() {
+		if (forcedWidth <= 0) {
+			return new Dimension(provider.getWidth(), provider.getHeight());
+		}
+		double scale = forcedWidth / (double) provider.getWidth();
+		return new Dimension(forcedWidth, (int) (provider.getHeight() * scale));
+	}
+
+	public void setForcedWidth(int forcedWidth) {
+		this.forcedWidth = forcedWidth;
+		invalidate();
 	}
 
 	private void refreshImage() {
-		byte[] imageData = provider.getCrate().getImage(imageShown);
-		imageShown = provider.getCrate().getImageNumber();
+		CrateImage crateImage = provider.getCrate().getImage(imageShown);
+		imageShown = crateImage.getNumber();
+		image = crateImage.getBufferedImage();
 		logger.info(this + " Showning image number " + imageShown);
-		WritableRaster raster = image.getRaster();
-		raster.setPixels(0, 0, getWidth(), getHeight(), toIntArray(imageData));
 		this.repaint();
 		refreshRequest = false;
 	}
@@ -83,7 +110,14 @@ public class CamViewer extends JPanel {
 	@Override
 	protected void paintComponent(Graphics g) {
 		super.paintComponent(g);
-		g.drawImage(image, 0, 0, null);
+		g.setColor(Color.BLACK);
+		g.fillRect(0, 0, getWidth(), getHeight());
+
+		if (image != null) {
+			Image scaled = image.getScaledInstance(forcedWidth, -1,
+					BufferedImage.SCALE_DEFAULT);
+			g.drawImage(scaled, 0, 0, null);
+		}
 	}
 
 	@Override

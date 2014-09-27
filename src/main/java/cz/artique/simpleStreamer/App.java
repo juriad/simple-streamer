@@ -12,9 +12,9 @@ import javax.swing.SwingUtilities;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import cz.artique.simpleStreamer.backend.ImageProviderState;
 import cz.artique.simpleStreamer.backend.ImageProvider;
 import cz.artique.simpleStreamer.backend.ImageProviderListener;
+import cz.artique.simpleStreamer.backend.ImageProviderState;
 import cz.artique.simpleStreamer.backend.Peer;
 import cz.artique.simpleStreamer.backend.cam.DummyWebCamReader;
 import cz.artique.simpleStreamer.backend.cam.RealWebCamReader;
@@ -22,8 +22,8 @@ import cz.artique.simpleStreamer.backend.cam.WebCamReader;
 import cz.artique.simpleStreamer.compression.Compressors;
 import cz.artique.simpleStreamer.compression.ImageFormat;
 import cz.artique.simpleStreamer.compression.RawCompressor;
-import cz.artique.simpleStreamer.frontend.CloseListener;
 import cz.artique.simpleStreamer.frontend.Displayer;
+import cz.artique.simpleStreamer.frontend.DisplayerListener;
 import cz.artique.simpleStreamer.interconnect.CleverList;
 
 public class App {
@@ -72,10 +72,27 @@ public class App {
 			@Override
 			public void run() {
 				new Displayer(imageProviders)
-						.addCloseListener(new CloseListener() {
+						.addDisplayerListener(new DisplayerListener() {
 							@Override
 							public void applicationClosing() {
 								endListening = true;
+							}
+
+							@Override
+							public void newPeer(final InetAddress hostname,
+									final int port) {
+								logger.info("Adding new peer; this may take a while, preocessing in a new thread.");
+								new Thread(new Runnable() {
+									@Override
+									public void run() {
+										try {
+											createPeer(hostname, port);
+										} catch (Exception e) {
+											logger.info("Ignoring this failed peer.");
+										}
+									}
+								}).start();
+								;
 							}
 						});
 			}
@@ -108,13 +125,6 @@ public class App {
 		return webCamReader;
 	}
 
-	private Peer createPeer(Socket socket) throws IOException {
-		Peer peer = new Peer(socket, webCamReader, ImageFormat.RAW,
-				arguments.getRate());
-		watchState(peer);
-		return peer;
-	}
-
 	private void watchState(ImageProvider provider) {
 		provider.addImageProviderListener(new ImageProviderListener() {
 			@Override
@@ -135,30 +145,43 @@ public class App {
 		});
 	}
 
+	private void createPeerFromSocket(Socket socket) throws IOException {
+		try {
+			Peer peer = new Peer(socket, webCamReader, ImageFormat.RAW,
+					arguments.getRate());
+			watchState(peer);
+			logger.info("Adding peer " + peer + " into the list.");
+			imageProviders.add(peer);
+		} catch (Exception e) {
+			logger.error("Could not create peer for "
+					+ socket.getInetAddress().getHostName() + " and port "
+					+ socket.getPort(), e);
+			throw e;
+		}
+	}
+
+	private void createPeer(InetAddress host, int port) throws IOException {
+		Socket socket = null;
+		try {
+			socket = new Socket(host, port);
+		} catch (IOException e) {
+			logger.error("Could not connect to host " + host.getHostName()
+					+ " and port " + port, e);
+			throw e;
+		}
+		createPeerFromSocket(socket);
+	}
+
 	private void createPeers(int count, List<InetAddress> remoteHosts,
 			List<Integer> remotePorts) {
 		logger.info("Creating peers.");
 		for (int i = 0; i < count; i++) {
 			InetAddress host = remoteHosts.get(i);
 			Integer port = remotePorts.get(i);
-
-			Socket socket = null;
 			try {
-				socket = new Socket(host, port);
-			} catch (IOException e) {
-				logger.error("Could not connect to host " + host.getHostName()
-						+ " and port " + port, e);
-				logger.info("Will skip this connection and continue with others.");
-				continue;
-			}
-			try {
-				Peer p = createPeer(socket);
-				logger.info("Adding peer " + p + " into the list.");
-				imageProviders.add(p);
+				createPeer(host, port);
 			} catch (Exception e) {
-				logger.error("Could not create peer for " + host.getHostName()
-						+ " and port " + port, e);
-				logger.info("Will skip this peer and continue with others.");
+				logger.info("Will skip this connection and continue with others.");
 			}
 		}
 	}
@@ -183,9 +206,7 @@ public class App {
 					logger.info("Accepted a connection from "
 							+ connectionSocket.getInetAddress().getHostName()
 							+ ":" + connectionSocket.getPort());
-					Peer p = createPeer(connectionSocket);
-					logger.info("Added a new peer " + p + " to the list.");
-					imageProviders.add(p);
+					createPeerFromSocket(connectionSocket);
 				} catch (SocketTimeoutException e) {
 					// do nothing
 				} catch (IOException e) {

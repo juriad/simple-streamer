@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import cz.artique.simpleStreamer.compression.Compressor;
 import cz.artique.simpleStreamer.compression.Compressors;
 import cz.artique.simpleStreamer.compression.ImageFormat;
+import cz.artique.simpleStreamer.interconnect.CrateImage;
 import cz.artique.simpleStreamer.network.ImageMessage;
 import cz.artique.simpleStreamer.network.MalformedMessageException;
 import cz.artique.simpleStreamer.network.Message;
@@ -27,14 +28,12 @@ public class Peer extends AbstractImageProvider {
 	private Thread receivingThread;
 	private Thread sendingThread;
 
-	private PeerReceiver peerReceiver;
-
 	public Peer(Socket socket, ImageProvider sendingProvider,
 			ImageFormat sendingFormat, int rate) throws IOException {
 		super(socket.getInetAddress().getHostName() + ":" + socket.getPort());
 		messageHandler = new MessageHandler(socket);
 
-		peerReceiver = new PeerReceiver();
+		PeerReceiver peerReceiver = new PeerReceiver();
 		receivingThread = new Thread(peerReceiver);
 		receivingThread.setDaemon(true);
 		receivingThread.start();
@@ -110,13 +109,13 @@ public class Peer extends AbstractImageProvider {
 						byte[] data = ((ImageMessage) message).getData();
 						byte[] image = compressor.uncompress(data);
 						logger.info(this + " Successfully got image.");
-						getCrate().setImage(image);
+						getCrate().setImage(image, getWidth(), getHeight());
 						fireImageAvailable();
 					}
 				} catch (MalformedMessageException e) {
 					logger.error(this + " Got a malformed message.", e);
 					logger.info(this
-							+ " Will skip this one and wait for the next one.");
+							+ " We will skip this one and wait for the next one.");
 				} catch (IOException e) {
 					logger.error(this
 							+ " Failed to read from the socket. Suppose it is broken.");
@@ -159,6 +158,10 @@ public class Peer extends AbstractImageProvider {
 					StartStreamMessage message = new StartStreamMessage(format,
 							sendingProvider.getWidth(),
 							sendingProvider.getHeight());
+					logger.info(this
+							+ " Sending start stream message width format "
+							+ format + ", width " + sendingProvider.getWidth()
+							+ ", height" + sendingProvider.getHeight() + ".");
 					try {
 						messageHandler.sendMessage(message);
 					} catch (IOException e) {
@@ -168,23 +171,28 @@ public class Peer extends AbstractImageProvider {
 					}
 					sendingState = ImageProviderState.INITIALIZED;
 				} else {
-					byte[] image = getImage();
-					byte[] data = compressor.compress(image);
+					CrateImage crateImage = getImage();
+					byte[] data = compressor.compress(crateImage.getRawImage());
 					ImageMessage message = new ImageMessage(data);
+					logger.info(this + " Sending image number "
+							+ crateImage.getNumber());
 					try {
 						messageHandler.sendMessage(message);
-						Thread.sleep(rate);
+						try {
+							Thread.sleep(rate);
+						} catch (InterruptedException e) {
+							// do nothing
+						}
 					} catch (IOException e) {
 						logger.error(this + " Failed to send an image message.");
 						break;
-					} catch (InterruptedException e) {
-						// nothing
 					}
 				}
 			}
 
-			{
+			if (!ImageProviderState.UNINITIALIZED.equals(sendingState)) {
 				StopStreamMessage message = new StopStreamMessage();
+				logger.info(this + " Sending stop stream message.");
 				try {
 					messageHandler.sendMessage(message);
 				} catch (IOException e) {
@@ -200,7 +208,7 @@ public class Peer extends AbstractImageProvider {
 			}
 		}
 
-		private byte[] getImage() {
+		private CrateImage getImage() {
 			return sendingProvider.getCrate().getImage(-1);
 		}
 

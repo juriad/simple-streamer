@@ -6,6 +6,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,11 +38,11 @@ public class Displayer {
 	private Map<ImageProvider, CamViewer> viewers;
 	private JPanel main;
 	private DefaultListModel<ImageProvider> listModel;
-	private List<CloseListener> listeners;
+	private List<DisplayerListener> listeners;
 
 	public Displayer(final CleverList<ImageProvider> providers) {
 		viewers = new HashMap<ImageProvider, CamViewer>();
-		listeners = new ArrayList<CloseListener>();
+		listeners = new ArrayList<DisplayerListener>();
 
 		final JFrame frame = new JFrame("Webcam Conference");
 		JPanel content = new JPanel(new BorderLayout(10, 10));
@@ -49,6 +50,9 @@ public class Displayer {
 
 		JPanel left = new JPanel(new BorderLayout(10, 10));
 		left.setPreferredSize(new Dimension(200, 200));
+
+		final JButton addPeer = new JButton("Add peer");
+		left.add(addPeer, BorderLayout.NORTH);
 
 		listModel = new DefaultListModel<ImageProvider>();
 		final JList<ImageProvider> list = new JList<ImageProvider>(listModel);
@@ -69,6 +73,23 @@ public class Displayer {
 				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), BorderLayout.CENTER);
 		main.setMinimumSize(new Dimension(400, 300));
 
+		addPeer.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				logger.info("Add peer button has been clicked.");
+				PeerDialog peerDialog = new PeerDialog(frame);
+				peerDialog.setVisible(true);
+				if (peerDialog.isFilled()) {
+					logger.info("Valid data for new peer has been filled in.");
+					InetAddress hostname = peerDialog.getHostname();
+					int port = peerDialog.getPort();
+					fireNewPeer(hostname, port);
+				} else {
+					logger.info("The new peer dialog has been closed.");
+				}
+			}
+		});
+
 		list.addListSelectionListener(new ListSelectionListener() {
 			@Override
 			public void valueChanged(ListSelectionEvent e) {
@@ -79,6 +100,8 @@ public class Displayer {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				ImageProvider provider = list.getSelectedValue();
+				logger.info("Remove button has been clicked; provider is "
+						+ provider);
 				provider.terminate();
 			}
 		});
@@ -128,10 +151,9 @@ public class Displayer {
 
 				frame.dispose();
 
-				for (CloseListener l : listeners) {
-					l.applicationClosing();
-				}
+				fireApplicationClosing();
 			}
+
 		});
 
 		for (ImageProvider p : providers) {
@@ -215,7 +237,19 @@ public class Displayer {
 		listModel.addElement(provider);
 	}
 
-	public void addCloseListener(CloseListener listener) {
+	private synchronized void fireApplicationClosing() {
+		for (DisplayerListener l : listeners) {
+			l.applicationClosing();
+		}
+	}
+
+	private synchronized void fireNewPeer(InetAddress hostname, int port) {
+		for (DisplayerListener l : listeners) {
+			l.newPeer(hostname, port);
+		}
+	}
+
+	public synchronized void addDisplayerListener(DisplayerListener listener) {
 		logger.info("Added new close listener " + listener);
 		listeners.add(listener);
 	}

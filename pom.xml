@@ -94,6 +94,13 @@
 			<version>1.9</version>
 		</dependency>
 
+		<dependency>
+			<!-- form layout -->
+			<groupId>com.miglayout</groupId>
+			<artifactId>miglayout</artifactId>
+			<version>3.7.4</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
