@@ -27,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 
 import cz.artique.simpleStreamer.backend.ImageProvider;
 import cz.artique.simpleStreamer.backend.ImageProviderListener;
+import cz.artique.simpleStreamer.backend.Peer;
 import cz.artique.simpleStreamer.backend.cam.AbstractWebcamReader;
 import cz.artique.simpleStreamer.interconnect.CleverList;
 import cz.artique.simpleStreamer.interconnect.ListChangeListener;
@@ -39,12 +40,15 @@ public class Displayer {
 	private JPanel main;
 	private DefaultListModel<ImageProvider> listModel;
 	private List<DisplayerListener> listeners;
+	private CleverList<ImageProvider> providers;
+	private JFrame frame;
 
 	public Displayer(final CleverList<ImageProvider> providers) {
+		this.providers = providers;
 		viewers = new HashMap<ImageProvider, CamViewer>();
 		listeners = new ArrayList<DisplayerListener>();
 
-		final JFrame frame = new JFrame("Webcam Conference");
+		frame = new JFrame("Webcam Conference");
 		JPanel content = new JPanel(new BorderLayout(10, 10));
 		frame.getContentPane().add(content);
 
@@ -100,9 +104,14 @@ public class Displayer {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				ImageProvider provider = list.getSelectedValue();
-				logger.info("Remove button has been clicked; provider is "
-						+ provider);
-				provider.terminate();
+
+				if (provider instanceof Peer) {
+					logger.info("Remove button has been clicked; provider is "
+							+ provider);
+					provider.terminate();
+				} else {
+					terminateAllAndExit();
+				}
 			}
 		});
 
@@ -145,13 +154,7 @@ public class Displayer {
 			@Override
 			public void windowClosing(WindowEvent e) {
 				logger.info("Window closed; terminating all providers and firing close event.");
-				for (ImageProvider p : providers) {
-					p.terminate();
-				}
-
-				frame.dispose();
-
-				fireApplicationClosing();
+				terminateAllAndExit();
 			}
 
 		});
@@ -164,6 +167,16 @@ public class Displayer {
 		frame.setVisible(true);
 
 		logger.info("Displayer has been created.");
+	}
+
+	private void terminateAllAndExit() {
+		for (ImageProvider p : providers) {
+			p.terminate();
+		}
+
+		frame.dispose();
+
+		fireApplicationClosing();
 	}
 
 	private void registerProvider(ImageProvider p) {

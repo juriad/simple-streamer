@@ -1,5 +1,6 @@
 package cz.artique.simpleStreamer;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -109,16 +110,23 @@ public class App {
 	private WebCamReader createWebCamReader() {
 		int rate = 20; // wait between images (50FPS)
 
-		WebCamReader webCamReader;
-		if (arguments.isDummy()) {
+		WebCamReader webCamReader = null;
+
+		if (!arguments.isDummy()) {
+			try {
+				webCamReader = new RealWebCamReader(arguments.getWidth(),
+						arguments.getHeight(), rate);
+				logger.info("Created a real webcam reader.");
+			} catch (FileNotFoundException e) {
+			}
+		}
+
+		if (webCamReader == null) {
 			webCamReader = new DummyWebCamReader(arguments.getWidth(),
 					arguments.getHeight(), rate);
 			logger.info("Created a dummy webcam reader.");
-		} else {
-			webCamReader = new RealWebCamReader(arguments.getWidth(),
-					arguments.getHeight(), rate);
-			logger.info("Created a real webcam reader.");
 		}
+
 		imageProviders.add(webCamReader);
 		watchState(webCamReader);
 

@@ -74,6 +74,13 @@
 		</dependency>
 
 		<dependency>
+			<!-- logging for webcam capture -->
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-simple</artifactId>
+			<version>1.7.2</version>
+		</dependency>
+
+		<dependency>
 			<!-- native library handler for webcam capture -->
 			<groupId>com.nativelibs4java</groupId>
 			<artifactId>bridj</artifactId>
