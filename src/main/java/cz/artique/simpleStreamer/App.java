@@ -3,6 +3,7 @@ package cz.artique.simpleStreamer;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -52,7 +53,7 @@ public class App {
 		});
 	}
 
-	public App(AppArgs arguments) {
+	public App(final AppArgs arguments) {
 		this.arguments = arguments;
 		setupCompressors();
 
@@ -72,30 +73,58 @@ public class App {
 		SwingUtilities.invokeLater(new Runnable() {
 			@Override
 			public void run() {
-				new Displayer(imageProviders)
-						.addDisplayerListener(new DisplayerListener() {
-							@Override
-							public void applicationClosing() {
-								endListening = true;
-							}
+				final Displayer displayer = new Displayer(imageProviders);
+				displayer.addDisplayerListener(new DisplayerListener() {
+					@Override
+					public void applicationClosing() {
+						endListening = true;
+					}
 
-							@Override
-							public void newPeer(final InetAddress hostname,
-									final int port) {
-								logger.info("Adding new peer; this may take a while, preocessing in a new thread.");
-								new Thread(new Runnable() {
-									@Override
-									public void run() {
-										try {
-											createPeer(hostname, port);
-										} catch (Exception e) {
-											logger.info("Ignoring this failed peer.");
-										}
-									}
-								}).start();
-								;
+					@Override
+					public void newPeer(final InetAddress hostname,
+							final int port) {
+						if (hostname.isLoopbackAddress()
+								&& port == arguments.getServerPort()) {
+							displayer
+									.showErrorMessage("Connection to yourself is prohibited.");
+							logger.error("Connection to yourself is prohibited.");
+							return;
+						}
+
+						for (ImageProvider provider : imageProviders) {
+							if (provider instanceof Peer) {
+								Peer p = (Peer) provider;
+								if (p.getHostname().equals(hostname)
+										&& p.getPort() == port) {
+									String msg = "You are already connected to "
+											+ hostname.getHostName()
+											+ ":"
+											+ port + ".";
+									displayer.showErrorMessage(msg);
+									logger.error(msg);
+									return;
+								}
 							}
-						});
+						}
+
+						logger.info("Adding new peer; this may take a while, preocessing in a new thread.");
+						new Thread(new Runnable() {
+							@Override
+							public void run() {
+								try {
+									createPeer(hostname, port);
+								} catch (Exception e) {
+									displayer
+											.showErrorMessage("Failed to connect to peer "
+													+ hostname.getHostName()
+													+ ":" + port + ".");
+									logger.info("Ignoring this failed peer.");
+								}
+							}
+						}).start();
+						;
+					}
+				});
 			}
 		});
 
@@ -169,12 +198,16 @@ public class App {
 	}
 
 	private void createPeer(InetAddress host, int port) throws IOException {
+		int timeout = 5000;
 		Socket socket = null;
 		try {
-			socket = new Socket(host, port);
+			socket = new Socket();
+			socket.connect(new InetSocketAddress(host, port), timeout);
 		} catch (IOException e) {
 			logger.error("Could not connect to host " + host.getHostName()
 					+ " and port " + port, e);
+
+			socket.close();
 			throw e;
 		}
 		createPeerFromSocket(socket);

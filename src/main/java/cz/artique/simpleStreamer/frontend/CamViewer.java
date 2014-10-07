@@ -96,6 +96,7 @@ public class CamViewer extends JPanel {
 	public void setForcedWidth(int forcedWidth) {
 		this.forcedWidth = forcedWidth;
 		invalidate();
+		getParent().doLayout();
 	}
 
 	private void refreshImage() {

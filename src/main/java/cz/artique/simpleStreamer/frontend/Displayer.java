@@ -16,6 +16,7 @@ import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
@@ -72,10 +73,12 @@ public class Displayer {
 		content.add(left, BorderLayout.WEST);
 
 		main = new JPanel(new WrapLayout(WrapLayout.LEFT, 10, 10));
-		content.add(new JScrollPane(main,
+		JScrollPane mainScrollPane = new JScrollPane(main,
 				JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), BorderLayout.CENTER);
-		main.setMinimumSize(new Dimension(400, 300));
+				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		content.add(mainScrollPane, BorderLayout.CENTER);
+		mainScrollPane.setMinimumSize(new Dimension(400, 300));
+		mainScrollPane.setPreferredSize(new Dimension(800, 600));
 
 		addPeer.addActionListener(new ActionListener() {
 			@Override
@@ -129,6 +132,7 @@ public class Displayer {
 								CamViewer camViewer = viewers.remove(value);
 								if (camViewer != null) {
 									main.remove(camViewer);
+									updateMainArea();
 								}
 								logger.info("CamViewer of provider " + value
 										+ " has been removed.");
@@ -167,6 +171,10 @@ public class Displayer {
 		frame.setVisible(true);
 
 		logger.info("Displayer has been created.");
+	}
+
+	private void updateMainArea() {
+		main.doLayout();
 	}
 
 	private void terminateAllAndExit() {
@@ -246,6 +254,7 @@ public class Displayer {
 		logger.info("Adding a new CamViewer for provider" + provider);
 		CamViewer viewer = new CamViewer(provider);
 		main.add(viewer);
+		updateMainArea();
 		viewers.put(provider, viewer);
 		listModel.addElement(provider);
 	}
@@ -265,5 +274,15 @@ public class Displayer {
 	public synchronized void addDisplayerListener(DisplayerListener listener) {
 		logger.info("Added new close listener " + listener);
 		listeners.add(listener);
+	}
+
+	public void showErrorMessage(final String message) {
+		SwingUtilities.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				JOptionPane.showMessageDialog(frame, message, "Peer error",
+						JOptionPane.ERROR_MESSAGE);
+			}
+		});
 	}
 }

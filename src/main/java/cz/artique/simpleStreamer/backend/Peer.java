@@ -1,6 +1,7 @@
 package cz.artique.simpleStreamer.backend;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.Socket;
 
 import org.apache.logging.log4j.LogManager;
@@ -28,9 +29,14 @@ public class Peer extends AbstractImageProvider {
 	private Thread receivingThread;
 	private Thread sendingThread;
 
+	private InetAddress hostname;
+	private int port;
+
 	public Peer(Socket socket, ImageProvider sendingProvider,
 			ImageFormat sendingFormat, int rate) throws IOException {
 		super(socket.getInetAddress().getHostName() + ":" + socket.getPort());
+		hostname = socket.getInetAddress();
+		port = socket.getPort();
 		messageHandler = new MessageHandler(socket);
 
 		PeerReceiver peerReceiver = new PeerReceiver();
@@ -60,6 +66,14 @@ public class Peer extends AbstractImageProvider {
 			throw new IllegalStateException("Not yet initialized");
 		}
 		return height;
+	}
+
+	public InetAddress getHostname() {
+		return hostname;
+	}
+
+	public int getPort() {
+		return port;
 	}
 
 	private class PeerReceiver implements Runnable {
