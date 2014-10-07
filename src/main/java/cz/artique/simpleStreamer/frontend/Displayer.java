@@ -132,8 +132,8 @@ public class Displayer {
 								CamViewer camViewer = viewers.remove(value);
 								if (camViewer != null) {
 									main.remove(camViewer);
-									updateMainArea();
 								}
+								updateMainArea();
 								logger.info("CamViewer of provider " + value
 										+ " has been removed.");
 							}
@@ -175,6 +175,7 @@ public class Displayer {
 
 	private void updateMainArea() {
 		main.doLayout();
+		main.repaint();
 	}
 
 	private void terminateAllAndExit() {

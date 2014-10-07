@@ -13,7 +13,7 @@ public enum Compressors {
 	static final Logger logger = LogManager.getLogger(Compressors.class
 			.getName());
 
-	Map<ImageFormat, Compressor> compressors = new HashMap<ImageFormat, Compressor>();
+	private Map<ImageFormat, Compressor> compressors = new HashMap<ImageFormat, Compressor>();
 
 	public void registerCompressor(Compressor compressor) {
 		compressors.put(compressor.getFormat(), compressor);
