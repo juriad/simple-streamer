@@ -42,6 +42,9 @@ public class MessageHandler {
 						+ " Stream end reached before message end found.");
 				throw new IOException("Stream ended before the end of packet");
 			}
+			if (Character.isWhitespace(c)) {
+				continue;
+			}
 			sb.append((char) c);
 		} while (c != '}');
 		return sb.toString();
@@ -58,16 +61,17 @@ public class MessageHandler {
 		}
 		JSONObject jsonMessage = (JSONObject) object;
 		Message message = messageFactory.parseMessage(jsonMessage);
-		logger.info(this + " Received message of type: " + message.getType());
+		logger.debug(this + " Received message of type: " + message.getType());
 		return message;
 	}
 
 	public void sendMessage(Message message) throws IOException {
 		JSONObject obj = message.asJSONObject();
 		String jsonString = obj.toJSONString();
-		logger.info(this + " Sending message of type: " + message.getType());
+		logger.debug(this + " Sending message of type: " + message.getType());
 		logger.debug(this + " Sending:" + jsonString);
 		os.write(jsonString);
+		os.write('\n');
 	}
 
 	public void close() {

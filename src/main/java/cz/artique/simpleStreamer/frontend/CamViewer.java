@@ -53,7 +53,7 @@ public class CamViewer extends JPanel {
 					return;
 				}
 				refreshRequest = true;
-				logger.info(CamViewer.this
+				logger.debug(CamViewer.this
 						+ " Got a new image; scheduling a refresh request.");
 				SwingUtilities.invokeLater(new Runnable() {
 					@Override
@@ -103,7 +103,7 @@ public class CamViewer extends JPanel {
 		CrateImage crateImage = provider.getCrate().getImage(imageShown);
 		imageShown = crateImage.getNumber();
 		image = crateImage.getBufferedImage();
-		logger.info(this + " Showning image number " + imageShown);
+		logger.debug(this + " Showning image number " + imageShown);
 		this.repaint();
 		refreshRequest = false;
 	}

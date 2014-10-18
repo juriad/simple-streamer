@@ -41,7 +41,6 @@ public class Peer extends AbstractImageProvider {
 
 		PeerReceiver peerReceiver = new PeerReceiver();
 		receivingThread = new Thread(peerReceiver);
-		receivingThread.setDaemon(true);
 		receivingThread.start();
 
 		PeerSender peerSender = new PeerSender(sendingFormat, sendingProvider,
@@ -122,7 +121,7 @@ public class Peer extends AbstractImageProvider {
 						}
 						byte[] data = ((ImageMessage) message).getData();
 						byte[] image = compressor.uncompress(data);
-						logger.info(this + " Successfully got image.");
+						logger.debug(this + " Successfully got image.");
 						getCrate().setImage(image, getWidth(), getHeight());
 						fireImageAvailable();
 					}
@@ -188,7 +187,7 @@ public class Peer extends AbstractImageProvider {
 					CrateImage crateImage = getImage();
 					byte[] data = compressor.compress(crateImage.getRawImage());
 					ImageMessage message = new ImageMessage(data);
-					logger.info(this + " Sending image number "
+					logger.debug(this + " Sending image number "
 							+ crateImage.getNumber());
 					try {
 						messageHandler.sendMessage(message);

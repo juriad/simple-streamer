@@ -66,7 +66,7 @@ public abstract class AbstractImageProvider implements ImageProvider {
 	}
 
 	protected synchronized void fireImageAvailable() {
-		logger.info(this + " A new image number " + getCrate().getImageNumber()
+		logger.debug(this + " A new image number " + getCrate().getImageNumber()
 				+ " is available.");
 		for (ImageProviderListener l : listeners) {
 			l.imageAvailable(this);

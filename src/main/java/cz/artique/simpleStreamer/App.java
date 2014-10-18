@@ -3,26 +3,22 @@ package cz.artique.simpleStreamer;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.util.List;
 
+import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import cz.artique.simpleStreamer.backend.ImageProvider;
-import cz.artique.simpleStreamer.backend.ImageProviderListener;
-import cz.artique.simpleStreamer.backend.ImageProviderState;
 import cz.artique.simpleStreamer.backend.Peer;
 import cz.artique.simpleStreamer.backend.cam.DummyWebCamReader;
 import cz.artique.simpleStreamer.backend.cam.RealWebCamReader;
 import cz.artique.simpleStreamer.backend.cam.WebCamReader;
+import cz.artique.simpleStreamer.backend.server.PeerInitializer;
+import cz.artique.simpleStreamer.backend.server.PeerInitializerCallback;
+import cz.artique.simpleStreamer.backend.server.Server;
 import cz.artique.simpleStreamer.compression.Compressors;
-import cz.artique.simpleStreamer.compression.ImageFormat;
 import cz.artique.simpleStreamer.compression.RawCompressor;
 import cz.artique.simpleStreamer.frontend.Displayer;
 import cz.artique.simpleStreamer.frontend.DisplayerListener;
@@ -31,13 +27,15 @@ import cz.artique.simpleStreamer.interconnect.CleverList;
 public class App {
 	static final Logger logger = LogManager.getLogger(App.class.getName());
 
-	private CleverList<ImageProvider> imageProviders;
+	private final CleverList<ImageProvider> imageProviders;
 
-	private AppArgs arguments;
+	private final WebCamReader webCamReader;
 
-	private WebCamReader webCamReader;
+	private final Server server;
 
-	private boolean endListening = false;
+	private Displayer displayer;
+
+	private PeerInitializer peerInitializer;
 
 	/**
 	 * If any thread throws an exception, whole application should crash.
@@ -53,225 +51,154 @@ public class App {
 		});
 	}
 
+	private static void setupCompressors() {
+		Compressors.COMPRESSORS.registerCompressor(new RawCompressor());
+	}
+
 	public App(final AppArgs arguments) {
-		this.arguments = arguments;
-		setupCompressors();
-
-		List<InetAddress> remoteHosts = arguments.getRemoteHosts();
-		List<Integer> remotePorts = arguments.getRemotePorts();
-
-		int count = remoteHosts.size() < remotePorts.size() ? remoteHosts
-				.size() : remotePorts.size();
-		if (remoteHosts.size() != remotePorts.size()) {
-			logger.warn("The number of remotes does not equal to number of ports given.");
-		}
-		logger.info("Will connect to " + count + " peers.");
 		imageProviders = new CleverList<ImageProvider>();
-		webCamReader = createWebCamReader();
+		webCamReader = createWebCamReader(arguments.getWidth(),
+				arguments.getHeight(), arguments.isDummy());
+		imageProviders.add(webCamReader);
+
+		peerInitializer = new PeerInitializer(imageProviders,
+				arguments.getRate(), webCamReader);
+		peerInitializer.createPeers(arguments.getRemoteHosts(),
+				arguments.getRemotePorts(), null);
+
+		server = new Server(arguments.getServerPort(), peerInitializer);
 
 		logger.info("Scheduling GUI creation.");
 		SwingUtilities.invokeLater(new Runnable() {
 			@Override
 			public void run() {
-				final Displayer displayer = new Displayer(imageProviders);
-				displayer.addDisplayerListener(new DisplayerListener() {
+				setDisplayer(new Displayer(imageProviders));
+				getDisplayer().addDisplayerListener(new DisplayerListener() {
 					@Override
 					public void applicationClosing() {
-						endListening = true;
+						closeApplication();
 					}
 
 					@Override
 					public void newPeer(final InetAddress hostname,
 							final int port) {
-						if (hostname.isLoopbackAddress()
-								&& port == arguments.getServerPort()) {
-							displayer
-									.showErrorMessage("Connection to yourself is prohibited.");
-							logger.error("Connection to yourself is prohibited.");
-							return;
-						}
-
-						for (ImageProvider provider : imageProviders) {
-							if (provider instanceof Peer) {
-								Peer p = (Peer) provider;
-								if (p.getHostname().equals(hostname)
-										&& p.getPort() == port) {
-									String msg = "You are already connected to "
-											+ hostname.getHostName()
-											+ ":"
-											+ port + ".";
-									displayer.showErrorMessage(msg);
-									logger.error(msg);
-									return;
-								}
-							}
-						}
-
-						logger.info("Adding new peer; this may take a while, preocessing in a new thread.");
-						new Thread(new Runnable() {
-							@Override
-							public void run() {
-								try {
-									createPeer(hostname, port);
-								} catch (Exception e) {
-									displayer
-											.showErrorMessage("Failed to connect to peer "
-													+ hostname.getHostName()
-													+ ":" + port + ".");
-									logger.info("Ignoring this failed peer.");
-								}
-							}
-						}).start();
-						;
+						createNewPeer(hostname, port);
 					}
 				});
 			}
 		});
-
-		createPeers(count, arguments.getRemoteHosts(),
-				arguments.getRemotePorts());
 	}
 
-	private void setupCompressors() {
-		Compressors.COMPRESSORS.registerCompressor(new RawCompressor());
+	private void waitForReturn() {
+		Thread thread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				logger.info("Waiting for return key to be pressed.");
+				try {
+					System.in.read();
+				} catch (IOException e) {
+					logger.error("Failed to read from standard input; closing application");
+				}
+				closeApplication();
+			}
+		});
+
+		thread.setDaemon(true);
+		thread.start();
 	}
 
-	private WebCamReader createWebCamReader() {
+	private static WebCamReader createWebCamReader(int width, int height,
+			boolean dummy) {
 		int rate = 20; // wait between images (50FPS)
 
 		WebCamReader webCamReader = null;
 
-		if (!arguments.isDummy()) {
+		if (!dummy) {
 			try {
-				webCamReader = new RealWebCamReader(arguments.getWidth(),
-						arguments.getHeight(), rate);
+				webCamReader = new RealWebCamReader(width, height, rate);
 				logger.info("Created a real webcam reader.");
 			} catch (FileNotFoundException e) {
 			}
 		}
 
 		if (webCamReader == null) {
-			webCamReader = new DummyWebCamReader(arguments.getWidth(),
-					arguments.getHeight(), rate);
+			webCamReader = new DummyWebCamReader(width, height, rate);
 			logger.info("Created a dummy webcam reader.");
 		}
-
-		imageProviders.add(webCamReader);
-		watchState(webCamReader);
 
 		return webCamReader;
 	}
 
-	private void watchState(ImageProvider provider) {
-		provider.addImageProviderListener(new ImageProviderListener() {
-			@Override
-			public void stateChanged(ImageProvider provider) {
-				// this makes sure that as soon as the peer becomes
-				// obsolete, it will be removed from the lists.
-				if (ImageProviderState.OBSOLETE.equals(provider.getState())) {
-					logger.info("Provider " + provider
-							+ " became obsolete; removing it from the list.");
-					imageProviders.remove(provider);
+	private void createNewPeer(InetAddress hostname, int port) {
+		if (hostname.isLoopbackAddress() && port == server.getPort()) {
+			showMessage("Connection to yourself is prohibited.", "Peer Error",
+					JOptionPane.ERROR_MESSAGE);
+			logger.error("Connection to yourself is prohibited.");
+			return;
+		}
+
+		for (ImageProvider provider : imageProviders) {
+			if (provider instanceof Peer) {
+				Peer p = (Peer) provider;
+				if (p.getHostname().equals(hostname) && p.getPort() == port) {
+					String msg = "You are already connected to "
+							+ hostname.getHostName() + ":" + port + ".";
+					showMessage(msg, "Peer Error", JOptionPane.ERROR_MESSAGE);
+					logger.error(msg);
+					return;
 				}
 			}
-
-			@Override
-			public void imageAvailable(ImageProvider provider) {
-				// ignore
-			}
-		});
-	}
-
-	private void createPeerFromSocket(Socket socket) throws IOException {
-		try {
-			Peer peer = new Peer(socket, webCamReader, ImageFormat.RAW,
-					arguments.getRate());
-			watchState(peer);
-			logger.info("Adding peer " + peer + " into the list.");
-			imageProviders.add(peer);
-		} catch (Exception e) {
-			logger.error("Could not create peer for "
-					+ socket.getInetAddress().getHostName() + " and port "
-					+ socket.getPort(), e);
-			throw e;
 		}
+
+		logger.info("Adding new peer; this may take a while, processing in a new thread.");
+		peerInitializer.createPeer(hostname, port,
+				new PeerInitializerCallback() {
+					@Override
+					public void onSuccess(InetAddress hostname, int port) {
+					}
+
+					@Override
+					public void onError(InetAddress hostname, int port,
+							Throwable t) {
+						showMessage(
+								"Failed to connect to peer "
+										+ hostname.getHostName() + ":" + port
+										+ ".", "Peer Error",
+								JOptionPane.ERROR_MESSAGE);
+						logger.info("Ignoring this failed peer.");
+					}
+				});
 	}
 
-	private void createPeer(InetAddress host, int port) throws IOException {
-		int timeout = 5000;
-		Socket socket = null;
-		try {
-			socket = new Socket();
-			socket.connect(new InetSocketAddress(host, port), timeout);
-		} catch (IOException e) {
-			logger.error("Could not connect to host " + host.getHostName()
-					+ " and port " + port, e);
-
-			socket.close();
-			throw e;
+	private synchronized void closeApplication() {
+		logger.info("Application should be closed, terminating all Providers.");
+		for (ImageProvider p : imageProviders) {
+			p.terminate();
 		}
-		createPeerFromSocket(socket);
+		logger.info("Terminating Sever and closing Displayer");
+		server.terminate();
+		getDisplayer().close();
 	}
 
-	private void createPeers(int count, List<InetAddress> remoteHosts,
-			List<Integer> remotePorts) {
-		logger.info("Creating peers.");
-		for (int i = 0; i < count; i++) {
-			InetAddress host = remoteHosts.get(i);
-			Integer port = remotePorts.get(i);
-			try {
-				createPeer(host, port);
-			} catch (Exception e) {
-				logger.info("Will skip this connection and continue with others.");
-			}
-		}
-	}
-
-	private void listen() {
-		ServerSocket serverSocket = null;
-		try {
-			try {
-				serverSocket = new ServerSocket(arguments.getServerPort());
-				serverSocket.setSoTimeout(100);
-				logger.info("Created server socket for local port "
-						+ arguments.getServerPort());
-			} catch (IOException e) {
-				logger.error("Could not create socket for local port "
-						+ arguments.getServerPort(), e);
-				logger.info("Killing the application.");
-				throw new RuntimeException(e);
-			}
-			while (!endListening) {
-				try {
-					Socket connectionSocket = serverSocket.accept();
-					logger.info("Accepted a connection from "
-							+ connectionSocket.getInetAddress().getHostName()
-							+ ":" + connectionSocket.getPort());
-					createPeerFromSocket(connectionSocket);
-				} catch (SocketTimeoutException e) {
-					// do nothing
-				} catch (IOException e) {
-					logger.error("Failed to accept a connection.", e);
-					logger.info("Listening again.");
-				}
-			}
-			logger.info("Application has been closed. Ending listening.");
-		} finally {
-			if (serverSocket != null) {
-				try {
-					serverSocket.close();
-				} catch (IOException e) {
-					logger.error("Failed to close socket.", e);
-					// there is nothing to do
-				}
-			}
+	private void showMessage(String message, String title, int type) {
+		if (getDisplayer() != null) {
+			getDisplayer().showMessage(message, title, type);
 		}
 	}
 
 	public static void main(String[] args) {
 		setupThreading();
+		setupCompressors();
 		AppArgs arguments = new AppArgs(args);
 		App app = new App(arguments);
-		app.listen();
+		app.waitForReturn();
+	}
+
+	private synchronized Displayer getDisplayer() {
+		return displayer;
+	}
+
+	private synchronized void setDisplayer(Displayer displayer) {
+		this.displayer = displayer;
 	}
 }

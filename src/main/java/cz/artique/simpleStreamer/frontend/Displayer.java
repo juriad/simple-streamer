@@ -41,11 +41,9 @@ public class Displayer {
 	private JPanel main;
 	private DefaultListModel<ImageProvider> listModel;
 	private List<DisplayerListener> listeners;
-	private CleverList<ImageProvider> providers;
 	private JFrame frame;
 
 	public Displayer(final CleverList<ImageProvider> providers) {
-		this.providers = providers;
 		viewers = new HashMap<ImageProvider, CamViewer>();
 		listeners = new ArrayList<DisplayerListener>();
 
@@ -113,7 +111,7 @@ public class Displayer {
 							+ provider);
 					provider.terminate();
 				} else {
-					terminateAllAndExit();
+					closeApplication();
 				}
 			}
 		});
@@ -158,7 +156,7 @@ public class Displayer {
 			@Override
 			public void windowClosing(WindowEvent e) {
 				logger.info("Window closed; terminating all providers and firing close event.");
-				terminateAllAndExit();
+				closeApplication();
 			}
 
 		});
@@ -178,13 +176,8 @@ public class Displayer {
 		main.repaint();
 	}
 
-	private void terminateAllAndExit() {
-		for (ImageProvider p : providers) {
-			p.terminate();
-		}
-
+	private void closeApplication() {
 		frame.dispose();
-
 		fireApplicationClosing();
 	}
 
@@ -277,12 +270,22 @@ public class Displayer {
 		listeners.add(listener);
 	}
 
-	public void showErrorMessage(final String message) {
+	public void showMessage(final String message, final String title,
+			final int type) {
 		SwingUtilities.invokeLater(new Runnable() {
 			@Override
 			public void run() {
-				JOptionPane.showMessageDialog(frame, message, "Peer error",
-						JOptionPane.ERROR_MESSAGE);
+				JOptionPane.showMessageDialog(frame, message, title, type);
+			}
+		});
+	}
+
+	public void close() {
+		SwingUtilities.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				logger.info("GUI Window will be disposed.");
+				frame.dispose();
 			}
 		});
 	}
