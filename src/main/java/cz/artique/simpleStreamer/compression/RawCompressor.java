@@ -18,7 +18,7 @@ public class RawCompressor implements Compressor {
 	}
 
 	@Override
-	public byte[] compress(byte[] input) {
+	public byte[] compress(byte[] input) throws CompressorException {
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 		try {
 			GZIPOutputStream gzipOutputStream = new GZIPOutputStream(
@@ -26,7 +26,7 @@ public class RawCompressor implements Compressor {
 			gzipOutputStream.write(input);
 			gzipOutputStream.close();
 		} catch (IOException e) {
-			throw new RuntimeException(e);
+			throw new CompressorException(e);
 		}
 		logger.debug("Compression ratio %f\n",
 				(1.0f * input.length / byteArrayOutputStream.size()));
@@ -34,13 +34,13 @@ public class RawCompressor implements Compressor {
 	}
 
 	@Override
-	public byte[] uncompress(byte[] input) {
+	public byte[] uncompress(byte[] input) throws CompressorException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		try {
 			IOUtils.copy(new GZIPInputStream(new ByteArrayInputStream(input)),
 					out);
 		} catch (IOException e) {
-			throw new RuntimeException(e);
+			throw new CompressorException(e);
 		}
 		return out.toByteArray();
 	}

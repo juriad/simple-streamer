@@ -62,6 +62,11 @@ public class CamViewer extends JPanel {
 					}
 				});
 			}
+
+			@Override
+			public void error(ImageProvider provider) {
+				// ignore, this is handled elsewhere
+			}
 		});
 
 		addMouseMotionListener(new MouseMotionAdapter() {

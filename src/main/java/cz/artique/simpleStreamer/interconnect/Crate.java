@@ -31,7 +31,7 @@ public class Crate {
 
 	public synchronized CrateImage getImage(int greaterThan) {
 		while (getImageNumber() <= greaterThan) {
-			logger.info("Waiting for an image with number higher than "
+			logger.debug("Waiting for an image with number higher than "
 					+ greaterThan);
 			try {
 				this.wait();

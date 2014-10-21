@@ -46,6 +46,7 @@ public class App {
 			public void uncaughtException(Thread t, Throwable e) {
 				logger.error("A thread " + t.getName() + "(" + t.getId()
 						+ ") threw an exception; killing whole application.", e);
+				
 				System.exit(1);
 			}
 		});

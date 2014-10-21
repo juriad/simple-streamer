@@ -26,6 +26,7 @@ public class MessageHandler {
 
 	public MessageHandler(Socket socket) throws IOException {
 		this.socket = socket;
+		socket.setTcpNoDelay(true);
 		is = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 		os = new BufferedWriter(
 				new OutputStreamWriter(socket.getOutputStream()));
@@ -72,11 +73,14 @@ public class MessageHandler {
 		logger.debug(this + " Sending:" + jsonString);
 		os.write(jsonString);
 		os.write('\n');
+		os.flush();
 	}
 
 	public void close() {
 		logger.info(this + " Closing socket.");
+		
 		try {
+			os.flush();
 			socket.close();
 		} catch (IOException e) {
 			logger.error("Failed to close socket.", e);

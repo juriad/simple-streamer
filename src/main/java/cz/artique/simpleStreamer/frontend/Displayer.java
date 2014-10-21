@@ -231,6 +231,13 @@ public class Displayer {
 				public void imageAvailable(ImageProvider provider) {
 					// this is handled by the CanViewer
 				}
+
+				@Override
+				public void error(ImageProvider provider) {
+					showMessage("Peer " + provider.getName()
+							+ " sent image in wrong format.", "Peer Error",
+							JOptionPane.ERROR_MESSAGE);
+				}
 			});
 			break;
 		case OBSOLETE:

@@ -8,6 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import cz.artique.simpleStreamer.compression.Compressor;
+import cz.artique.simpleStreamer.compression.CompressorException;
 import cz.artique.simpleStreamer.compression.Compressors;
 import cz.artique.simpleStreamer.compression.ImageFormat;
 import cz.artique.simpleStreamer.interconnect.CrateImage;
@@ -110,6 +111,9 @@ public class Peer extends AbstractImageProvider {
 						if (ImageProviderState.UNINITIALIZED.equals(getState())) {
 							logger.error(this
 									+ " Got stop stream message when the stream has not been started yet.");
+						} else {
+							logger.info(this
+									+ " Got stop stream messagem, ending the peer.");
 						}
 						break;
 					} else if (message instanceof ImageMessage) {
@@ -120,7 +124,15 @@ public class Peer extends AbstractImageProvider {
 							continue;
 						}
 						byte[] data = ((ImageMessage) message).getData();
-						byte[] image = compressor.uncompress(data);
+						byte[] image;
+						try {
+							image = compressor.uncompress(data);
+						} catch (CompressorException e) {
+							logger.error(this + " Failed to uncompress image.",
+									e);
+							logger.info(this + " We will terminate this peer.");
+							break;
+						}
 						logger.debug(this + " Successfully got image.");
 						getCrate().setImage(image, getWidth(), getHeight());
 						fireImageAvailable();
@@ -156,6 +168,8 @@ public class Peer extends AbstractImageProvider {
 		ImageProviderState sendingState = ImageProviderState.UNINITIALIZED;
 		private int rate;
 
+		private int lastSent = -1;
+
 		public PeerSender(ImageFormat format, ImageProvider sendingProvider,
 				int rate) {
 			this.format = format;
@@ -166,6 +180,8 @@ public class Peer extends AbstractImageProvider {
 
 		@Override
 		public void run() {
+			int compressionWentWrongCounter = 0;
+
 			while (!isEnd()) {
 				if (ImageProviderState.UNINITIALIZED.equals(sendingState)) {
 					StartStreamMessage message = new StartStreamMessage(format,
@@ -185,12 +201,32 @@ public class Peer extends AbstractImageProvider {
 					sendingState = ImageProviderState.INITIALIZED;
 				} else {
 					CrateImage crateImage = getImage();
-					byte[] data = compressor.compress(crateImage.getRawImage());
+					byte[] data;
+					try {
+						data = compressor.compress(crateImage.getRawImage());
+					} catch (CompressorException e1) {
+						logger.error(
+								this
+										+ " Failed to compress image; dropping the image.",
+								e1);
+						compressionWentWrongCounter++;
+
+						if (compressionWentWrongCounter > 5) {
+							logger.error(this
+									+ " Compression failed too many times; exiting.");
+							throw new RuntimeException(
+									"Compression failed too many times; exiting.");
+						}
+						lastSent = crateImage.getNumber();
+						continue;
+					}
+
 					ImageMessage message = new ImageMessage(data);
 					logger.debug(this + " Sending image number "
 							+ crateImage.getNumber());
 					try {
 						messageHandler.sendMessage(message);
+						lastSent = crateImage.getNumber();
 						try {
 							Thread.sleep(rate);
 						} catch (InterruptedException e) {
@@ -222,7 +258,7 @@ public class Peer extends AbstractImageProvider {
 		}
 
 		private CrateImage getImage() {
-			return sendingProvider.getCrate().getImage(-1);
+			return sendingProvider.getCrate().getImage(lastSent);
 		}
 
 		@Override

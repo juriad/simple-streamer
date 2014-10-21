@@ -72,6 +72,12 @@ public abstract class AbstractImageProvider implements ImageProvider {
 			l.imageAvailable(this);
 		}
 	}
+	
+	protected synchronized void fireError() {
+		for (ImageProviderListener l : listeners) {
+			l.error(this);
+		}
+	}
 
 	@Override
 	public String getName() {

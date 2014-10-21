@@ -37,6 +37,20 @@ public class PeerInitializer {
 		provider.addImageProviderListener(new ImageProviderListener() {
 			@Override
 			public void stateChanged(ImageProvider provider) {
+				end(provider);
+			}
+
+			@Override
+			public void imageAvailable(ImageProvider provider) {
+				// ignore
+			}
+
+			@Override
+			public void error(ImageProvider provider) {
+				end(provider);
+			}
+
+			private void end(ImageProvider provider) {
 				// this makes sure that as soon as the peer becomes
 				// obsolete, it will be removed from the lists.
 				if (ImageProviderState.OBSOLETE.equals(provider.getState())) {
@@ -44,11 +58,6 @@ public class PeerInitializer {
 							+ " became obsolete; removing it from the list.");
 					imageProviders.remove(provider);
 				}
-			}
-
-			@Override
-			public void imageAvailable(ImageProvider provider) {
-				// ignore
 			}
 		});
 	}

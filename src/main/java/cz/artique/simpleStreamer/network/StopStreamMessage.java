@@ -3,7 +3,7 @@ package cz.artique.simpleStreamer.network;
 public class StopStreamMessage extends AbstractMessage {
 
 	public StopStreamMessage() {
-		super("stoptream");
+		super("stopstream");
 	}
 
 }
