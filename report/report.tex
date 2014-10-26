@@ -71,7 +71,7 @@ A connecting peer must first establish the connection by sending a negotiation m
 The newly connecting peer shall wait for a message of the type ``negotiationResponse''.
 This message shall carry the status ``accepted'' or ``declined''.
 If the receiver declines the connection, both peers shall terminate the connection process.
-However, if the message has the status ``accept'', the normal procedure as used in the current implementation will follow.
+However, if the message has the status ``accepted'', the normal procedure as used in the current implementation will follow.
 
 \subsection{Communication Encryption}
 
@@ -83,7 +83,7 @@ Here we consider two approaches:
 
 \subsubsection{SSL}
 
-The javax.net.ssl package can utilise SSL protocols.
+The \verb|javax.net.ssl| package can utilise SSL protocols.
 In this way, messages would first be encrypted with a common certificate provided with the application and then decrypted by the receiver, before the JSON message contained could be processed.
 This would secure the image data and also the connection itself.
 
@@ -92,12 +92,25 @@ Provision of certificates may be made possible via the use of PGP email encrypti
 When connecting, the user can then be told if it is encrypted or a plain connection.
 This can be used to assign a port to the connection and distinguish between certificate-verified peers and non-certificate-verified.
 
+However, using certificate based SSL connection is not convenient for simple Peer to Peer network communication.
+Many issues are present:
+\begin{itemize}
+	\item It is not feasible to provide a certificate for every single user.
+	\item Using common certificate of the application provider is not safe.
+	\item An ordinary user should not care about using certificates.
+	\item Moving peer usually does not have the same host-name.
+\end{itemize}
+
+We therefore offer an alternative usage of SSL which does not require certificates.
+It is not a widely known fact that SSL can use alternative methods for authentication which are better suited in our case; for example the Secure Remote Password Protocol \cite{srp}.
+This method allows users to authenticate by exchanging a temporary password which may be randomly generated whenever the client starts.
+There are not many implementation of this protocol regarding usage in SSL, however we found a library \href{SecureBlackBox}{https://www.eldos.com/sbb/} which provides it.
+For a comertial development, it could be a fine choice.
+
 \subsubsection{Symmetric Encryption with Deffie-Hellman Key Exchange}
 
-This is an arguably more-secure method for protecting users by assigning an individual encryption key per communication pair.
-It is not feasible to provide a certificate for every single user, so an asymmetric encryption is only possible with a commonly used certificate of the application provider.
-
-An alternative would be to use a symmetric encryption method.
+An alternative would be to use a symmetric encryption method by assigning an individual encryption key per communication pair.
+This is an arguably more-secure method for protecting users.
 This will, then, require the exchange of a shared secret key over an insecure channel initially.
 One way to securely exchange such a secret key is the Diffie-Hellman Key Exchange as described by \cite{newdirections}.
 Using this method, each participant will receive an own private and public key.
@@ -123,7 +136,7 @@ By retaining keys for a connection in memory, the exchange of keys is only requi
 
 \section{Scalability and Rate Limiting}
 
-A noticeably limiting factor of the current implementation concerns its synchronous approach to accessing crates (images).
+A noticeably limiting factor of the current implementation concerns its synchronous approach to accessing crates (image with its sequence number and synchronisation primitives).
 As more users connect to the application, greater bandwidth is consumed on the computer running the process.
 A potential result of this is increased delays in rendering images to the screen.
 This scalability problem is unavoidable and may be an unaffordable cost to the user.
@@ -132,7 +145,9 @@ To relieve the system of this load, a solution might be to implement many crates
 
 Though, the synchronous property attributed to each crate will persist in such an implementation.
 Synchronous API implementations do not, unfortunately, provide information about buffer sizes on the computer that the application runs on, nor is it able to detail the status of buffers.
+The only information available is how long a call to \verb|write()| method on an \verb|OutputStream| took.
 This is a cause for concern, as this information is useful for an implementation with multiple crates.
+A possible solution would be changing the implementation to use asynchronous sockets through \verb|javax.nio| library.  
 
 Regarding rate limiting, the current implementation of the application sends images to peers at a rate of one image every 100 milliseconds, according to the operating system's internal clock.
 This is done for two reasons in particular:
@@ -147,29 +162,32 @@ This is done for two reasons in particular:
 The current implementation transmits images individually.
 More-efficient schemes are already in place with published applications that are used in society today.
 Some considerations for improvement include:
-
-\subsection{UI design}
-
+\begin{itemize}
+\item \textbf{UI design} \\
 Including: button layout and appearance, window sizing, scaling of images on the screen, welcome screen, menu bar etc.
 
-\subsection{Including a ``friends list''}
+\item \textbf{Including a ``friends list''} \\
+There are possible two kinds of saved contacts:
+\begin{enumerate}
+	\item assigning name to the pair of remote host-name and port,
+	\item saving a persistent key which would allow to skip the negotiation.
+		SSL can use pre-shared keys as a method of authentication.
+\end{enumerate}
 
-\subsection{Bandwidth optimization and security features}
-
+\item \textbf{Bandwidth optimisation and security features} \\
 These have been described above.
 
-\subsection{Conferences/Groups}
-
+\item \textbf{Conferences/Groups} \\
 Currently, users are allowed to conference with a number of peers, but the set of peers taking part in a conference on one instance of the application may not be the same set of peers taking part on another instance.
 To use an example, A and B may be visible to C in a conference, but A connects only to C and so B is not visible to A (similarly for B).
 The protocol could be extended in a way that would ensure that all users of a conference are always connected to the same peers.
 Therefore a client who accepts an incoming connection, should send a list of all connected peers to the new participant.
 They should also inform the already connected peers about the new peer.
 
-\subsection{Voice communication}
-
+\item \textbf{Voice communication} \\
 Currently only images are sent across the network.
 An implementation similar to the one submitted may be used to attach voice data to a connected peer.
+\end{itemize}
 
 \begingroup
 \raggedright
