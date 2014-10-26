@@ -102,10 +102,10 @@ Many issues are present:
 \end{itemize}
 
 We therefore offer an alternative usage of SSL which does not require certificates.
-It is not a widely known fact that SSL can use alternative methods for authentication which are better suited in our case; for example the Secure Remote Password Protocol \cite{srp}.
-This method allows users to authenticate by exchanging a temporary password which may be randomly generated whenever the client starts.
-There are not many implementation of this protocol regarding usage in SSL, however we found a library \href{SecureBlackBox}{https://www.eldos.com/sbb/} which provides it.
-For a comertial development, it could be a fine choice.
+SSL is capable of exploiting alternative methods for authentication which are better suited to our application. For example, the Secure Remote Password Protocol \cite{srp} is one such method.
+This method allows users to authenticate by exchanging a temporary password which may be randomly generated whenever the client starts their application.
+There are few implementations of this protocol in an SSL context.
+The library \href{SecureBlackBox}{https://www.eldos.com/sbb/} which does provide an implementation of it and for a commercial development, this choice is justified.
 
 \subsubsection{Symmetric Encryption with Deffie-Hellman Key Exchange}
 
@@ -145,7 +145,7 @@ To relieve the system of this load, a solution might be to implement many crates
 
 Though, the synchronous property attributed to each crate will persist in such an implementation.
 Synchronous API implementations do not, unfortunately, provide information about buffer sizes on the computer that the application runs on, nor is it able to detail the status of buffers.
-The only information available is how long a call to \verb|write()| method on an \verb|OutputStream| took.
+The only information available is the length of time a call to the \verb|write()| method on an \verb|OutputStream| has taken.
 This is a cause for concern, as this information is useful for an implementation with multiple crates.
 A possible solution would be changing the implementation to use asynchronous sockets through \verb|javax.nio| library.  
 
