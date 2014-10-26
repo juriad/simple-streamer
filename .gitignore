@@ -15,3 +15,12 @@
 log/
 target/
 
+# TeX
+*.aux
+*.bbl
+*.blg
+*.dvi
+*.log
+*.out
+report.pdf
+

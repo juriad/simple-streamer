@@ -1,0 +1,182 @@
+\documentclass[10pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[english]{babel}
+\usepackage{url}
+\usepackage[super]{nth}
+\usepackage{fancyhdr}
+\usepackage{tabu}
+\usepackage[compact]{titlesec}
+\usepackage{microtype}
+\usepackage{color}
+\usepackage{amsmath}
+
+\twocolumn
+
+\newcommand{\todo}[1]{}
+\renewcommand{\todo}[1]{{\color{red} TODO: {#1}}}
+
+\DeclareGraphicsExtensions{.pdf,.png,.jpg,.eps}
+\setlength{\columnsep}{0.25in}
+\hyphenpenalty=2000
+
+\def\mytitle{Distributed Systems: Project 2 -- Simple Streamer}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Barann, Juraszek, Reardon}
+\fancyhead[R]{\mytitle}
+
+\fancyfoot[C]{\thepage}
+
+\title{\mytitle}
+\author{
+Benjamin Barann, bbarann, 708745 \and
+Adam Juraszek, ajuraszek, 711466 \and
+Jack Reardon, jackr, 643253
+}
+
+\begin{document}
+
+\maketitle
+
+\section{Bandwidth Consumption}
+
+Bandwidth is the bit-rate of data transmissible through a communicative network. \cite{distributedsystems}
+It is a property bound to the physical construction of the network and cannot typically be modified by any programmatic means.
+The consumption of bandwidth, however, is reducible by compressing data that is to be sent over the network prior to transmission.
+For this project, image compression (such as H.264) will be the most applicable data compression scheme.
+
+A video implementation is suggested at the end of this report.
+If such an implementation is assumed, a standard video compression scheme will suit the solution.
+Video compression involves the identification of visual differences in successive images of the video.
+Given a starting video frame, the video is reconstructable by reproducing each of the changes to each frame (starting at the first image) in succession.
+
+\section{Security}
+
+The following aspects, relevant to security, are considered:
+
+\subsection{Accepting and declining connections}
+
+In the current implementation it is possible to connect to every peer that is executing the application.
+Access granted provided the firewall permits the connection.
+If a firewall is running in an automatic mode or certain IP address have previously been established, peer connection is a trivial ordeal.
+This exposes the application to external hacks.
+
+To prevent this, the protocol shall be developed to include the option to accept or decline incoming connections as they arise.
+A connecting peer must first establish the connection by sending a negotiation message to the receiver.
+The newly connecting peer shall wait for a message of the type ``negotiationResponse''.
+This message shall carry the status ``accepted'' or ``declined''.
+If the receiver declines the connection, both peers shall terminate the connection process.
+However, if the message has the status ``accept'', the normal procedure as used in the current implementation will follow.
+
+\subsection{Communication Encryption}
+
+Currently, image data uses base-64 encoding for sending messages.
+In many regards, this is not considered a secure means by which sensitive data should to be sent over the internet.
+Therefore, an encryption method should be used to secure the transmitted data.
+There are several possibilities for how this could be achieved.
+Here we consider two approaches:
+
+\subsubsection{SSL}
+
+The javax.net.ssl package can utilise SSL protocols.
+In this way, messages would first be encrypted with a common certificate provided with the application and then decrypted by the receiver, before the JSON message contained could be processed.
+This would secure the image data and also the connection itself.
+
+Each client can have their own SSL certificate.
+Provision of certificates may be made possible via the use of PGP email encryption (a trust-based method of transfer).
+When connecting, the user can then be told if it is encrypted or a plain connection.
+This can be used to assign a port to the connection and distinguish between certificate-verified peers and non-certificate-verified.
+
+\subsubsection{Symmetric Encryption with Deffie-Hellman Key Exchange}
+
+This is an arguably more-secure method for protecting users by assigning an individual encryption key per communication pair.
+It is not feasible to provide a certificate for every single user, so an asymmetric encryption is only possible with a commonly used certificate of the application provider.
+
+An alternative would be to use a symmetric encryption method.
+This will, then, require the exchange of a shared secret key over an insecure channel initially.
+One way to securely exchange such a secret key is the Diffie-Hellman Key Exchange as described by \cite{newdirections}.
+Using this method, each participant will receive an own private and public key.
+The commonly used key is then created by a homomorphic one-way function meaning that it may not be inverted.
+The key is created as follows:
+
+Both communication partners decide upon a prime $p$ and a primitive root $g \mod p$ with $2 \le g \le p-2$.
+These numbers would not be secret and may be transferred over an insecure channel.
+Both peers calculate a secret random number $(a, b)$ from the interval $[1, p-2]$ as a private key which will not be transferred.
+
+As a next step, peer one calculates $A = g^a \mod p$, while peer two calculates $B = g^b \mod p$.
+$A$ and $B$ are exchanged over the insecure channel.
+
+The calculation of $B^a \mod p$ and $A^b \mod p$ results in the same value of $K$.
+This key can now be used as a shared secret to encrypt all messages.
+
+An exemplary implementation of this method can be found via the method described by \cite{newdirections}.
+Alas, this method is not flawless.
+As the method does cover the authentication of the communication partner, a ``man-in-the-middle'' attack of an active attacker is still possible.
+As we deal with a video scenario, an active attacker would be detected by visual means.
+
+By retaining keys for a connection in memory, the exchange of keys is only required the first time that two peers connect.
+
+\section{Scalability and Rate Limiting}
+
+A noticeably limiting factor of the current implementation concerns its synchronous approach to accessing crates (images).
+As more users connect to the application, greater bandwidth is consumed on the computer running the process.
+A potential result of this is increased delays in rendering images to the screen.
+This scalability problem is unavoidable and may be an unaffordable cost to the user.
+
+To relieve the system of this load, a solution might be to implement many crates, one for each connecting peer, for updating images on the screen.
+
+Though, the synchronous property attributed to each crate will persist in such an implementation.
+Synchronous API implementations do not, unfortunately, provide information about buffer sizes on the computer that the application runs on, nor is it able to detail the status of buffers.
+This is a cause for concern, as this information is useful for an implementation with multiple crates.
+
+Regarding rate limiting, the current implementation of the application sends images to peers at a rate of one image every 100 milliseconds, according to the operating system's internal clock.
+This is done for two reasons in particular:
+
+\begin{itemize}
+	\item So that images are not dropped by the receiving peer when/if its buffer of incoming packets overflows.
+	\item So that free bandwidth exists for consumption by other threads operating on the same machine that the receiving peer operates on.
+\end{itemize}
+
+\section{Further Improvements}
+
+The current implementation transmits images individually.
+More-efficient schemes are already in place with published applications that are used in society today.
+Some considerations for improvement include:
+
+\subsection{UI design}
+
+Including: button layout and appearance, window sizing, scaling of images on the screen, welcome screen, menu bar etc.
+
+\subsection{Including a ``friends list''}
+
+\subsection{Bandwidth optimization and security features}
+
+These have been described above.
+
+\subsection{Conferences/Groups}
+
+Currently, users are allowed to conference with a number of peers, but the set of peers taking part in a conference on one instance of the application may not be the same set of peers taking part on another instance.
+To use an example, A and B may be visible to C in a conference, but A connects only to C and so B is not visible to A (similarly for B).
+The protocol could be extended in a way that would ensure that all users of a conference are always connected to the same peers.
+Therefore a client who accepts an incoming connection, should send a list of all connected peers to the new participant.
+They should also inform the already connected peers about the new peer.
+
+\subsection{Voice communication}
+
+Currently only images are sent across the network.
+An implementation similar to the one submitted may be used to attach voice data to a connected peer.
+
+\begingroup
+\raggedright
+
+\bibliographystyle{alpha}
+\bibliography{references}
+\endgroup
+
+
+\end{document}
