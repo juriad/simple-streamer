@@ -119,10 +119,16 @@ public class PeerInitializer {
 
 	public void createPeers(List<InetAddress> remoteHosts,
 			List<Integer> remotePorts, PeerInitializerCallback callback) {
-		int count = remoteHosts.size() < remotePorts.size() ? remoteHosts
-				.size() : remotePorts.size();
-		if (remoteHosts.size() != remotePorts.size()) {
+		int count = remoteHosts.size();
+		if (remotePorts.size() < count) {
 			logger.warn("The number of remotes does not equal to number of ports given.");
+			logger.warn("The missing ports will be set to the default: 6262.");
+			for (int i = remotePorts.size(); i < count; i++) {
+				remotePorts.add(6262);
+			}
+		} else if (remotePorts.size() > count) {
+			logger.warn("There are too many ports, the excessive ones will be ignored.");
+
 		}
 		logger.info("Will connect to " + count + " peers.");
 
